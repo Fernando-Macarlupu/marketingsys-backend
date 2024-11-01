@@ -643,7 +643,6 @@ class EliminarContacto(APIView):
             idPersona = contacto['persona__id']
             contacto = Contacto.objects.filter(id=id).first()
             if contacto is not None:
-                
                 #print(contacto)
                 Telefono.objects.filter(Q(contacto__id = id)).delete()
                 Direccion.objects.filter(Q(contacto__id = id)).delete()
