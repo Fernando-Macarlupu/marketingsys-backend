@@ -91,7 +91,7 @@ class BuscarDetalleContacto(APIView):
                     empresa['sector'] = empresa['empresa__sector']
                     empresa['telefono'] = "-"
                     telefonosEmpresa = Telefono.objects.filter(empresa__id =empresa['empresa__id']).values()
-                    print(telefonosEmpresa)
+                    #print(telefonosEmpresa)
                     if telefonosEmpresa.count()>0:
                         empresa['telefono'] = telefonosEmpresa[0]['numero']
                         for telefono in telefonosEmpresa:
@@ -215,7 +215,7 @@ class RegistrarContacto(APIView):
                  'propietario': request.data["propietario"]
             }
             if empresas!=[]:
-                print('tiene empresas')
+                #print('tiene empresas')
                 campos_contacto['empresa'] = empresas[0]['empresa']
             #print(campos_contacto)
             contacto_serializer = ContactoSerializer(data=campos_contacto)
@@ -351,7 +351,7 @@ class BuscarDetalleEmpresa(APIView):
     def get(self, request,id):
         if id is not None and id > 0:
             empresa = Empresa.objects.filter(id=id).values('id','nombre','sector','cantEmpleados','tipo','propietario__id').first()
-            print(empresa)
+            #print(empresa)
             if empresa is not None:
                 campos_empresas = {
                     "idEmpresa": empresa['id'],
@@ -397,7 +397,7 @@ class BuscarDetalleEmpresa(APIView):
                     contacto['correo'] = "-"
                     contacto['telefono'] = "-"
                     telefonosContacto = Telefono.objects.filter(contacto__id =contacto['id']).values()
-                    print(telefonosContacto)
+                    #print(telefonosContacto)
                     if telefonosContacto.count()>0:
                         contacto['telefono'] = telefonosContacto[0]['numero']
                         for telefono in telefonosContacto:
@@ -643,7 +643,7 @@ class EliminarContacto(APIView):
             idPersona = contacto['persona__id']
             contacto = Contacto.objects.filter(id=id).first()
             if contacto is not None:
-                print(contacto)
+                #print(contacto)
                 Telefono.objects.filter(Q(contacto__id = id)).delete()
                 Direccion.objects.filter(Q(contacto__id = id)).delete()
                 CuentaCorreo.objects.filter(Q(contacto__id = id)).delete()
