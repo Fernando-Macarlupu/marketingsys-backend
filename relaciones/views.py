@@ -644,6 +644,7 @@ class EliminarContacto(APIView):
             contacto = Contacto.objects.filter(id=id).first()
             if contacto is not None:
                 #print(contacto)
+                
                 Telefono.objects.filter(Q(contacto__id = id)).delete()
                 Direccion.objects.filter(Q(contacto__id = id)).delete()
                 CuentaCorreo.objects.filter(Q(contacto__id = id)).delete()
