@@ -10,3 +10,4 @@ setuptools==75.1.0
 sqlparse==0.4.1
 psycopg2-binary==2.9.9
 python-dotenv==0.8.2
+whitenoise==6.2.0
