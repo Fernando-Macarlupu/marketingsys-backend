@@ -840,7 +840,6 @@ class CargarContactos(APIView):
                 correoEnBD = None
                 if contacto["correo"] != {}:
                     correoEnBD = CuentaCorreo.objects.filter(contacto__propietario__id = request.data["propietario"], direccion = contacto["correo"]["direccion"], contacto__id__gte = 1).values("contacto__id","contacto__persona__id").first()
-                #contactoGuardadoValor = Contacto.objects.filter(persona__nombreCompleto=contacto['nombreCompleto'], propietario__id = request.data["propietario"]).values("id","persona__id").first()
                 idContacto = 0
                 idPersona = 0
                 if correoEnBD is not None:
@@ -882,8 +881,8 @@ class CargarContactos(APIView):
                         idContacto = contacto_serializer.save()
                         idContacto = idContacto.id
                 
-                telefonos = []
                 contactoGuardadoBD = Contacto.objects.filter(id = idContacto).first()
+                telefonos = []
                 for tel in contacto["telefonos"]:
                     nuevoTel = Telefono()
                     nuevoTel.principal = tel['principal']
@@ -904,29 +903,15 @@ class CargarContactos(APIView):
                     nuevaRed.nombreUsuario = red['nombreUsuario']
                     nuevaRed.contacto = contactoGuardadoBD
                     redes.append(nuevaRed)
-                # empresasContacto = [] 
-                # for emp in contacto["empresas"]:
-                #     empresaGuardada = Empresa.objects.filter(nombre=emp['nombre'], propietario__id = request.data["propietario"]).values("id").first()
-                #     idEmpresa = 0
-                #     if empresaGuardada is not None:
-                #         idEmpresa = empresaGuardada['id']
-                #     else:
-                #         campos_empresa ={"nombre": emp['nombre'], "propietario": request.data["propietario"]}
-                #         empresa_serializer = EmpresaSerializer(data=campos_empresa)
-                #         if empresa_serializer.is_valid():
-                #             idEmpresa = empresa_serializer.save()
-                #             idEmpresa = idEmpresa.id
-                #     empresaGuardadaBD = Empresa.objects.filter(id=idEmpresa).first()
-                #     nuevaEmpresaContacto = ContactoXEmpresa()
-                #     nuevaEmpresaContacto.contacto = contactoGuardadoBD
-                #     nuevaEmpresaContacto.empresa = empresaGuardadaBD
-                #     empresasContacto.append(nuevaEmpresaContacto)
                 if telefonos !=[]:
                     Telefono.objects.filter(Q(contacto__id = idContacto)).delete()
                     Telefono.objects.bulk_create(telefonos)
                 if direcciones !=[]:
                     Direccion.objects.filter(Q(contacto__id = idContacto)).delete()
                     Direccion.objects.bulk_create(direcciones)
+                if redes !=[]:
+                    CuentaRedSocial.objects.filter(Q(contacto__id = idContacto)).delete()
+                    CuentaRedSocial.objects.bulk_create(redes)  
                 if contacto["correo"] != {}:
                     CuentaCorreo.objects.filter(Q(contacto__id = idContacto)).delete()
                     campos = {'servicio': contacto["correo"]['servicio'],
@@ -936,16 +921,6 @@ class CargarContactos(APIView):
                     correo_serializer = CuentaCorreoSerializer(data = campos)
                     if correo_serializer.is_valid():
                         correo_serializer.save()
-                if redes !=[]:
-                    CuentaRedSocial.objects.filter(Q(contacto__id = idContacto)).delete()
-                    CuentaRedSocial.objects.bulk_create(redes)
-                #if empresasContacto !=[]:
-
-                    # empresaGuardadaBD = Empresa.objects.filter(id=idEmpresa).first()
-                    # nuevaEmpresaContacto = ContactoXEmpresa()
-                    # nuevaEmpresaContacto.contacto = contactoGuardadoBD
-                    # nuevaEmpresaContacto.empresa = empresaGuardadaBD
-                    # ContactoXEmpresa.objects.bulk_create(empresasContacto)                
             return Response(status=status.HTTP_200_OK,
                         data={
                             'message': 'Contactos cargados correctamente',
