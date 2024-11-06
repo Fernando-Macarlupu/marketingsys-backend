@@ -16,4 +16,9 @@ urlpatterns = [
     path('registrarEmpresa', RegistrarEmpresa.as_view()),
     path('eliminarEmpresa/<int:id>', EliminarEmpresa.as_view()),
     path('cargarEmpresas', CargarEmpresas.as_view()),
+
+    path('aplicarFiltrosLista', AplicarFiltrosLista.as_view()),
+
+    path('filtrarListas', FiltrarListas.as_view()),
+    path('registrarLista', RegistrarLista.as_view()),
 ]

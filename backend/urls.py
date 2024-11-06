@@ -27,6 +27,7 @@ public_apis = [
     url(r'^api/v1/', include([
         url(r'', include('relaciones.urls')),
         url(r'', include('usuarios.urls')),
+        url(r'', include('marketing.urls')),
     ]))
 ]
 

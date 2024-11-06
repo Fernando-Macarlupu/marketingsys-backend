@@ -318,7 +318,7 @@ class FiltrarContactos(APIView):
             fecha  = datetime.datetime.strptime(fechaModificacionFin, '%d-%m-%Y').date()
             query.add(Q(fechaModificacion__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
         
-        contactos = Contacto.objects.filter((subquery1 | subquery3 | subquery4) & query).values('id', 'persona__id', 'persona__nombreCompleto', 'estado','fechaCreacion', 'fechaModificacion')
+        contactos = Contacto.objects.filter((subquery1 | subquery3 | subquery4) & query).values('id', 'persona__id', 'persona__nombreCompleto', 'estado','fechaCreacion', 'fechaModificacion','empresa__nombre')
         listaContactos = list(contactos)
         for contacto in listaContactos:
             contacto['fechaCreacion'] = datetime.datetime.strftime(contacto['fechaCreacion'], '%d-%m-%Y')
@@ -344,6 +344,11 @@ class FiltrarContactos(APIView):
                 contacto['correo'] = correoContacto['direccion']
             else:
                 contacto['correo'] = '-'
+            if contacto['empresa__nombre'] is None:
+                contacto['empresa'] = "-"
+            else:
+                contacto['empresa'] = contacto['empresa__nombre']
+            del contacto['empresa__nombre']
         #poner el formato para mostrar contactos
         return Response(listaContactos, status = status.HTTP_200_OK)
     
@@ -1190,6 +1195,139 @@ class FiltrarListas(APIView):
                 lista['tipo'] = 'Activa'
         return Response(listaListas, status = status.HTTP_200_OK)
     
+class AplicarFiltrosLista(APIView):
+    def post(self, request,id=0):
+        elementos = []
+        idPropietario = int(request.data["propietario"])
+        if request.data["filtros"] != []:
+            if request.data["objeto"] == "0":
+                query = Q()
+                query.add(Q(propietario__id=idPropietario), Q.AND)
+                #contactos
+                for filtro in request.data["filtros"]:
+                    if(filtro['propiedad']=="nombreCompleto"):
+                        query.add(Q(persona_nombreCompleto__contains=filtro['valorEvaluacion']), Q.AND)
+                    elif (filtro['propiedad']=="correo"):
+                        correos = CuentaCorreo.objects.filter(direccion__contains = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosCorreo = [correo['contacto__id'] for correo in list(correos)]
+                        query.add(Q(id__in=contactosCorreo), Q.AND)
+                    elif(filtro['propiedad'] == "telefono"):
+                        telefonos = Telefono.objects.filter(numero__contains = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosTelefono = [telefono['contacto__id'] for telefono in list(telefonos)]
+                        query.add(Q(id__in=contactosTelefono), Q.AND)
+                    elif(filtro['propiedad'] == "paisDir"):
+                        direcciones = Direccion.objects.filter(pais__contains = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosDireccion = [direccion['contacto__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=contactosDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "estadoDir"):
+                        direcciones = Direccion.objects.filter(estado__contains = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosDireccion = [direccion['contacto__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=contactosDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "ciudadDir"):
+                        direcciones = Direccion.objects.filter(ciudad__contains = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosDireccion = [direccion['contacto__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=contactosDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "direccionDir"):
+                        direcciones = Direccion.objects.filter(direccion__contains = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosDireccion = [direccion['contacto__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=contactosDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "estado"):
+                        query.add(Q(estado=filtro['valorEvaluacion']), Q.AND)
+                    elif(filtro['propiedad'] == "red"):
+                        redes = CuentaRedSocial.objects.filter(redSocial = filtro['valorEvaluacion']).values('contacto__id')
+                        contactosRed = [red['contacto__id'] for red in list(redes)]
+                        query.add(Q(id__in=contactosRed), Q.AND)
+                    elif(filtro['propiedad'] == "empresa"):
+                        if(filtro['valorEvaluacion'] == "0"):
+                            query.add(Q(empresa__id__isnull=True), Q.AND) #revisar si funciona
+                        elif(filtro['valorEvaluacion'] == "1"):
+                            query.add(Q(empresa__id__gte = 1), Q.AND)
+                    elif(filtro['propiedad'] == "empresaNombre"):
+                        query.add(Q(empresa__nombre__contains = filtro['valorEvaluacion']), Q.AND)
+                    elif(filtro['propiedad'] == "fechaCreacion"):
+                        fecha  = datetime.datetime.strptime(filtro['valorEvaluacion'], '%d-%m-%Y').date()
+                        if(filtro['evaluacion'] == "0"):
+                            query.add(Q(fechaCreacion=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+                        elif(filtro['evaluacion'] == "1"):
+                            query.add(Q(fechaCreacion__lt=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
+                        elif(filtro['evaluacion'] == "2"):
+                            query.add(Q(fechaCreacion__gt=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+                        elif(filtro['evaluacion'] == "3"):
+                            query.add(Q(fechaCreacion__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
+                        elif(filtro['evaluacion'] == "4"):
+                            query.add(Q(fechaCreacion__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+                contactos = Contacto.objects.filter(query).values('id', 'fechaCreacion', 'fechaModificacion')
+                elementos = list(contactos)
+            elif request.data["objeto"] == "1":
+                query = Q()
+                query.add(Q(propietario__id=idPropietario), Q.AND)
+                #empresas
+                for filtro in request.data["filtros"]:
+                    if(filtro['propiedad']=="nombre"):
+                        query.add(Q(nombre__contains=filtro['valorEvaluacion']), Q.AND)
+                    if(filtro['propiedad']=="sector"):
+                        query.add(Q(sector__contains=filtro['valorEvaluacion']), Q.AND)
+                    elif(filtro['propiedad'] == "telefono"):
+                        telefonos = Telefono.objects.filter(numero__contains = filtro['valorEvaluacion']).values('empresa__id')
+                        empresasTelefono = [telefono['empresa__id'] for telefono in list(telefonos)]
+                        query.add(Q(id__in=empresasTelefono), Q.AND)
+                    elif(filtro['propiedad'] == "paisDir"):
+                        direcciones = Direccion.objects.filter(pais__contains = filtro['valorEvaluacion']).values('empresa__id')
+                        empresasDireccion = [direccion['empresa__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=empresasDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "estadoDir"):
+                        direcciones = Direccion.objects.filter(estado__contains = filtro['valorEvaluacion']).values('empresa__id')
+                        empresasDireccion = [direccion['empresa__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=empresasDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "ciudadDir"):
+                        direcciones = Direccion.objects.filter(ciudad__contains = filtro['valorEvaluacion']).values('empresa__id')
+                        empresasDireccion = [direccion['empresa__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=empresasDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "direccionDir"):
+                        direcciones = Direccion.objects.filter(direccion__contains = filtro['valorEvaluacion']).values('empresa__id')
+                        empresasDireccion = [direccion['empresa__id'] for direccion in list(direcciones)]
+                        query.add(Q(id__in=empresasDireccion), Q.AND)
+                    elif(filtro['propiedad'] == "tipo"):
+                        query.add(Q(tipo=filtro['valorEvaluacion']), Q.AND)
+                    elif(filtro['propiedad'] == "cantEmpleados"):
+                        cantEmpleados = int(filtro['valorEvaluacion'])
+                        if(filtro['evaluacion'] == "0"):
+                            query.add(Q(cantEmpleados=cantEmpleados), Q.AND)
+                        elif(filtro['evaluacion'] == "1"):
+                            query.add(Q(cantEmpleados_lt=cantEmpleados), Q.AND)
+                        elif(filtro['evaluacion'] == "2"):
+                            query.add(Q(cantEmpleados_gt=cantEmpleados), Q.AND)
+                        elif(filtro['evaluacion'] == "3"):
+                            query.add(Q(cantEmpleados_lte=cantEmpleados), Q.AND)
+                        elif(filtro['evaluacion'] == "4"):
+                            query.add(Q(cantEmpleados_gte=cantEmpleados), Q.AND)
+                    elif(filtro['propiedad'] == "contacto"):
+                        contactos = Contacto.objects.filter(empresa__id__gte = 1).values('empresa__id')
+                        contactosEmpresa = [contacto['empresa__id'] for contacto in list(contactos)]
+                        if(filtro['valorEvaluacion'] == "0"):
+                            query.add(~Q(id__in=contactosEmpresa), Q.AND) #revisar si funciona
+                        elif(filtro['valorEvaluacion'] == "1"):
+                            query.add(Q(id__in=contactosEmpresa), Q.AND) #revisar si funciona
+                    elif(filtro['propiedad'] == "contactoNombre"):
+                        contactos = Contacto.objects.filter(persona_nombreCompleto__contains=filtro['valorEvaluacion']).values('empresa__id')
+                        contactosEmpresa = [contacto['empresa__id'] for contacto in list(contactos)]
+                        query.add(Q(id__in=contactosEmpresa), Q.AND)
+                    elif(filtro['propiedad'] == "fechaCreacion"):
+                        fecha  = datetime.datetime.strptime(filtro['valorEvaluacion'], '%d-%m-%Y').date()
+                        if(filtro['evaluacion'] == "0"):
+                            query.add(Q(fechaCreacion=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+                        elif(filtro['evaluacion'] == "1"):
+                            query.add(Q(fechaCreacion__lt=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
+                        elif(filtro['evaluacion'] == "2"):
+                            query.add(Q(fechaCreacion__gt=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+                        elif(filtro['evaluacion'] == "3"):
+                            query.add(Q(fechaCreacion__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
+                        elif(filtro['evaluacion'] == "4"):
+                            query.add(Q(fechaCreacion__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+                empresas = Empresa.objects.filter(query).values('id', 'fechaCreacion', 'fechaModificacion')
+                elementos = list(empresas)
+        return Response(elementos, status = status.HTTP_200_OK)
+
 class RegistrarLista(APIView):
     def post(self, request,id=0):
         if request.data["idLista"] is not None and request.data["idLista"]>0:
@@ -1220,9 +1358,9 @@ class RegistrarLista(APIView):
             filtros = request.data["filtros"]
             for filtro in filtros:
                 campos = {'lista': idLista,
-                          'propiedad': filtro['propiedad'],
+                          'propiedad': filtro['propiedad'], #cambiar esta parte
                           'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': filtro['valorEvaluacion'] 
+                          'valorEvaluacion': str(filtro['valorEvaluacion']) 
                         }
                 filtro_serializer = FiltroSerializer(data = campos)
                 if filtro_serializer.is_valid():
@@ -1234,7 +1372,6 @@ class RegistrarLista(APIView):
                  'objeto': objeto,
                  'tipo': request.data["tipo"],
                  'tamano': request.data["tamano"],
-                 'importe': request.data["importe"],
                  'propietario': request.data["propietario"]
             }
             lista_serializer = ListaSerializer(lista, data=campos_lista)
@@ -1247,7 +1384,6 @@ class RegistrarLista(APIView):
                  'objeto': objeto,
                  'tipo': request.data["tipo"],
                  'tamano': request.data["tamano"],
-                 'importe': request.data["importe"],
                  'propietario': request.data["propietario"]
             }
             lista_serializer = ListaSerializer(lista, data=campos_lista)
@@ -1257,9 +1393,9 @@ class RegistrarLista(APIView):
             filtros = request.data["filtros"]
             for filtro in filtros:
                 campos = {'lista': idLista,
-                          'propiedad': filtro['propiedad'],
+                          'propiedad': filtro['propiedad'], #cambiar esta parte
                           'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': filtro['valorEvaluacion'] 
+                          'valorEvaluacion': str(filtro['valorEvaluacion']) 
                         }
                 filtro_serializer = FiltroSerializer(data = campos)
                 if filtro_serializer.is_valid():

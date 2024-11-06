@@ -43,14 +43,16 @@ class FiltrarPlanes(APIView):
         planes = Plan.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'sponsor', 'presupuesto','estado', 'inicioVigencia', 'finVigencia')
         listaPlanes = list(planes)
         for plan in listaPlanes:
-            plan['inicioVigencia'] = datetime.datetime.strftime(plan['inicioVigencia'], '%d-%m-%Y')
-            plan['finVigencia'] = datetime.datetime.strftime(plan['finVigencia'], '%d-%m-%Y')
             fechaHoy  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
-            if plan['inicioVigencia'] <= fecha and plan['finVigencia'] >= fecha:
+            inicioVigencia = plan['inicioVigencia'].replace(tzinfo=None)
+            finVigencia = plan['finVigencia'].replace(tzinfo=None)
+            if inicioVigencia <= fecha and finVigencia >= fecha:
                 plan['estado'] = 'Vigente'
             else:
                 plan['estado'] = 'No vigente'
+            plan['inicioVigencia'] = datetime.datetime.strftime(plan['inicioVigencia'], '%d-%m-%Y')
+            plan['finVigencia'] = datetime.datetime.strftime(plan['finVigencia'], '%d-%m-%Y')
         return Response(listaPlanes, status = status.HTTP_200_OK)
 
 class RegistrarPlan(APIView):
@@ -67,6 +69,12 @@ class RegistrarPlan(APIView):
                 if indicador_serializer.is_valid():
                     indicador_serializer.save()
             plan = Plan.objects.filter(id=idPlan).first()
+            estrategias = request.data["estrategias"]
+            for estrategia in estrategias:
+                if(estrategia['tipo']=='Programa'):
+                    Estrategia.objects.filter(id=estrategia['id']).update(plan=plan)
+                else:
+                    Campana.objects.filter(id=estrategia['id']).update(plan=plan)
             campos_plan = {
                  'descripcion': request.data["descripcion"],
                  'sponsor': request.data["sponsor"],
@@ -105,6 +113,13 @@ class RegistrarPlan(APIView):
             if plan_serializer.is_valid():
                 idPlan = plan_serializer.save()
                 idPlan = idPlan.id
+            plan = Plan.objects.filter(id=idPlan).first()
+            estrategias = request.data["estrategias"]
+            for estrategia in estrategias:
+                if(estrategia['tipo']=='Programa'):
+                    Estrategia.objects.filter(id=estrategia['id']).update(plan=plan)
+                else:
+                    Campana.objects.filter(id=estrategia['id']).update(plan=plan)
             indicadores = request.data["indicadores"]
             for indicador in indicadores:
                 campos = {'indicador': indicador['id'],
@@ -139,8 +154,7 @@ class FiltrarEstrategias(APIView):
             fecha  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             subquery1.add(Q(inicioVigencia__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
             subquery1.add(Q(finVigencia__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
-        if(tipo != "" and tipo in ['0','1']):
-            subquery1.add(Q(tipo=tipo), Q.AND)
+        
         if(fechaVigenciaIni != ""):
             fecha  = datetime.datetime.strptime(fechaVigenciaIni, '%d-%m-%Y').date()
             subquery2.add(Q(inicioVigencia__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
@@ -150,14 +164,25 @@ class FiltrarEstrategias(APIView):
             subquery2.add(Q(inicioVigencia__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
             subquery3.add(Q(finVigencia__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
         
-        estrategias = Estrategia.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'sponsor', 'presupuesto','estado', 'tipo', 'inicioVigencia', 'finVigencia')
-        listaEstrategias = list(estrategias)
+        listaEstrategias = []
+        if (tipo ==""):
+            programas = Estrategia.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'sponsor', 'presupuesto','estado', 'tipo','inicioVigencia', 'finVigencia')
+            subquery1.add(Q(tipo='1'), Q.AND)
+            campanas = Campana.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'sponsor', 'presupuesto','estado', 'tipo','inicioVigencia', 'finVigencia')
+            listaEstrategias = list(programas) + list(campanas)
+        elif (tipo == '0'):
+            estrategias = Estrategia.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'sponsor', 'presupuesto','estado', 'tipo','inicioVigencia', 'finVigencia')
+            listaEstrategias = list(estrategias)
+        elif (tipo == '1'):
+            subquery1.add(Q(tipo='1'), Q.AND)
+            estrategias = Campana.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'sponsor', 'presupuesto','estado', 'tipo','inicioVigencia', 'finVigencia')
+            listaEstrategias = list(estrategias)
         for estrategia in listaEstrategias:
-            estrategia['inicioVigencia'] = datetime.datetime.strftime(estrategia['inicioVigencia'], '%d-%m-%Y')
-            estrategia['finVigencia'] = datetime.datetime.strftime(estrategia['finVigencia'], '%d-%m-%Y')
             fechaHoy  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
-            if estrategia['inicioVigencia'] <= fecha and estrategia['finVigencia'] >= fecha:
+            inicioVigencia = estrategia['inicioVigencia'].replace(tzinfo=None)
+            finVigencia = estrategia['finVigencia'].replace(tzinfo=None)
+            if inicioVigencia <= fecha and finVigencia >= fecha:
                 estrategia['estado'] = 'Vigente'
             else:
                 estrategia['estado'] = 'No vigente'
@@ -165,6 +190,8 @@ class FiltrarEstrategias(APIView):
                 estrategia['tipo'] = 'Programa'
             elif estrategia['tipo'] == '1':
                 estrategia['tipo'] = 'Campaña stand-alone'
+            estrategia['inicioVigencia'] = datetime.datetime.strftime(estrategia['inicioVigencia'], '%d-%m-%Y')
+            estrategia['finVigencia'] = datetime.datetime.strftime(estrategia['finVigencia'], '%d-%m-%Y')
         return Response(listaEstrategias, status = status.HTTP_200_OK)
 
 class RegistrarEstrategia(APIView):
@@ -191,10 +218,8 @@ class RegistrarEstrategia(APIView):
                 #    contactoxestrategia_serializer.save()
             estrategia = Estrategia.objects.filter(id=idEstrategia).first()
             campos_estrategia = {
-                'plan': request.data['idPlan'],
-                'leads': request.data['leads'],
                  'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
+                 'tipo': '0',
                  'sponsor': request.data["sponsor"],
                  'presupuesto': request.data["presupuesto"],
                  'inicioVigencia': request.data["inicioVigencia"],
@@ -202,6 +227,10 @@ class RegistrarEstrategia(APIView):
                  'estado': request.data["estado"],
                  'propietario': request.data["propietario"]
             }
+            if(request.data["idPlan"] != "" and request.data["idPlan"]>0):
+                campos_estrategia['plan'] = request.data["idPlan"]
+            if(request.data["leads"] != "" and request.data["leads"]>0):
+                campos_estrategia['leads'] = request.data["leads"]
             if(request.data["inicioVigencia"] != ""):
                 fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
                 campos_estrategia['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
@@ -213,10 +242,8 @@ class RegistrarEstrategia(APIView):
                 estrategia_serializer.save()
         else:
             campos_estrategia = {
-                'plan': request.data['idPlan'],
-                'leads': request.data['leads'],
                  'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
+                 'tipo': '0',
                  'sponsor': request.data["sponsor"],
                  'presupuesto': request.data["presupuesto"],
                  'inicioVigencia': request.data["inicioVigencia"],
@@ -224,6 +251,10 @@ class RegistrarEstrategia(APIView):
                  'estado': request.data["estado"],
                  'propietario': request.data["propietario"]
             }
+            if(request.data["idPlan"] != "" and request.data["idPlan"]>0):
+                campos_estrategia['plan'] = request.data["idPlan"]
+            if(request.data["leads"] != "" and request.data["leads"]>0):
+                campos_estrategia['leads'] = request.data["leads"]
             if(request.data["inicioVigencia"] != ""):
                 fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
                 campos_estrategia['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
@@ -260,6 +291,7 @@ class FiltrarCampanas(APIView):
         cadena = request.data["cadena"]
         estado = request.data["estado"]
         fechaHoy = request.data["fechaHoy"]
+        tipo = request.data["tipo"]
         fechaVigenciaIni = request.data["fechaVigenciaIni"]
         fechaVigenciaFin = request.data["fechaVigenciaFin"]
         idPropietario = int(request.data["propietario"])
@@ -275,6 +307,8 @@ class FiltrarCampanas(APIView):
             fecha  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             subquery1.add(Q(inicioVigencia__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
             subquery1.add(Q(finVigencia__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
+        if(tipo != "" and tipo in ['0','1']):
+            subquery1.add(Q(tipo=tipo), Q.AND)
         if(fechaVigenciaIni != ""):
             fecha  = datetime.datetime.strptime(fechaVigenciaIni, '%d-%m-%Y').date()
             subquery2.add(Q(inicioVigencia__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
@@ -284,28 +318,24 @@ class FiltrarCampanas(APIView):
             subquery2.add(Q(inicioVigencia__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
             subquery3.add(Q(finVigencia__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
         
-        campanas = Campana.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'presupuesto','estado', 'inicioVigencia', 'finVigencia')
+        campanas = Campana.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'presupuesto','estado', 'tipo','inicioVigencia', 'finVigencia')
         listaCampanas = list(campanas)
         for campana in listaCampanas:
-            campana['tipo'] = 'Parte de programa'
-
-        subquery1.add(Q(tipo="1"), Q.AND)
-        campanasStandAlone = Estrategia.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'presupuesto','estado', 'inicioVigencia', 'finVigencia')
-        listaCampanasStandAlone = list(campanasStandAlone)
-        for campana in listaCampanasStandAlone:
-            campana['tipo'] = 'Stand-alone'
-        
-        listaCampanasTotal = listaCampanas + listaCampanasStandAlone
-        for campana in listaCampanasTotal:
-            campana['inicioVigencia'] = datetime.datetime.strftime(campana['inicioVigencia'], '%d-%m-%Y')
-            campana['finVigencia'] = datetime.datetime.strftime(campana['finVigencia'], '%d-%m-%Y')
             fechaHoy  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
-            if campana['inicioVigencia'] <= fecha and campana['finVigencia'] >= fecha:
+            inicioVigencia = campana['inicioVigencia'].replace(tzinfo=None)
+            finVigencia = campana['finVigencia'].replace(tzinfo=None)
+            if inicioVigencia <= fecha and finVigencia >= fecha:
                 campana['estado'] = 'Vigente'
             else:
                 campana['estado'] = 'No vigente'
-        return Response(listaCampanasTotal, status = status.HTTP_200_OK)
+            if campana['tipo'] == '0':
+                campana['tipo'] = 'Campaña de programa'
+            elif campana['tipo'] == '1':
+                campana['tipo'] = 'Campaña stand-alone'
+            campana['inicioVigencia'] = datetime.datetime.strftime(campana['inicioVigencia'], '%d-%m-%Y')
+            campana['finVigencia'] = datetime.datetime.strftime(campana['finVigencia'], '%d-%m-%Y')
+        return Response(listaCampanas, status = status.HTTP_200_OK)
 
 class RegistrarCampana(APIView):
     def post(self, request,id=0):
@@ -331,15 +361,20 @@ class RegistrarCampana(APIView):
                 #    contactoxcampana_serializer.save()
             campana = Campana.objects.filter(id=idCampana).first()
             campos_campana = {
-                'estrategia': request.data['idEstrategia'],
-                'leads': request.data['leads'],
+                'tipo': request.data["tipo"],
                  'descripcion': request.data["descripcion"],
+                 'sponsor': request.data["sponsor"],
                  'presupuesto': request.data["presupuesto"],
                  'inicioVigencia': request.data["inicioVigencia"],
                  'finVigencia': request.data["finVigencia"],
                  'estado': request.data["estado"],
                  'propietario': request.data["propietario"]
             }
+            if(request.data["leads"] != "" and request.data["leads"]>0):
+                campos_campana['leads'] = request.data["leads"]
+            if(request.data['idPlan']> 0 and request.data['idPlan'] != ""): campos_campana['plan'] = request.data['idPlan']
+            elif(request.data['idEstrategia']> 0 and request.data['idEstrategia'] != ""): campos_campana['estrategia'] = request.data['idEstrategia']
+            
             if(request.data["inicioVigencia"] != ""):
                 fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
                 campos_campana['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
@@ -351,15 +386,20 @@ class RegistrarCampana(APIView):
                 campana_serializer.save()
         else:
             campos_campana = {
-                'estrategia': request.data['idEstrategia'],
-                'leads': request.data['leads'],
+                'tipo': request.data["tipo"],
                  'descripcion': request.data["descripcion"],
+                 'sponsor': request.data["sponsor"],
                  'presupuesto': request.data["presupuesto"],
                  'inicioVigencia': request.data["inicioVigencia"],
                  'finVigencia': request.data["finVigencia"],
                  'estado': request.data["estado"],
                  'propietario': request.data["propietario"]
             }
+            if(request.data["leads"] != "" and request.data["leads"]>0):
+                campos_campana['leads'] = request.data["leads"]
+            if(request.data['idPlan']> 0 and request.data['idPlan'] != ""): campos_campana['plan'] = request.data['idPlan']
+            elif(request.data['idEstrategia']> 0 and request.data['idEstrategia'] != ""): campos_campana['estrategia'] = request.data['idEstrategia']
+            
             if(request.data["inicioVigencia"] != ""):
                 fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
                 campos_campana['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
@@ -426,11 +466,11 @@ class FiltrarRecursos(APIView):
         recursos = Recurso.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'presupuesto','estado', 'tipo', 'inicioVigencia', 'finVigencia')
         listaRecursos = list(recursos)
         for recurso in listaRecursos:
-            recurso['inicioVigencia'] = datetime.datetime.strftime(recurso['inicioVigencia'], '%d-%m-%Y')
-            recurso['finVigencia'] = datetime.datetime.strftime(recurso['finVigencia'], '%d-%m-%Y')
             fechaHoy  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
-            if recurso['inicioVigencia'] <= fecha and recurso['finVigencia'] >= fecha:
+            inicioVigencia = recurso['inicioVigencia'].replace(tzinfo=None)
+            finVigencia = recurso['finVigencia'].replace(tzinfo=None)
+            if inicioVigencia <= fecha and finVigencia >= fecha:
                 recurso['estado'] = 'Vigente'
             else:
                 recurso['estado'] = 'No vigente'
@@ -440,6 +480,8 @@ class FiltrarRecursos(APIView):
                 recurso['tipo'] = 'Publicación'
             elif recurso['tipo'] == '2':
                 recurso['tipo'] = 'Página web'
+            recurso['inicioVigencia'] = datetime.datetime.strftime(recurso['inicioVigencia'], '%d-%m-%Y')
+            recurso['finVigencia'] = datetime.datetime.strftime(recurso['finVigencia'], '%d-%m-%Y')
         return Response(listaRecursos, status = status.HTTP_200_OK)
 
 class RegistrarRecurso(APIView):
@@ -472,15 +514,10 @@ class RegistrarRecurso(APIView):
                  'inicioVigencia': request.data["inicioVigencia"],
                  'finVigencia': request.data["finVigencia"],
                  'estado': request.data["estado"],
-                 'propietario': request.data["propietario"],
-                 'estrategia': request.data["idEstrategia"],
-                 'campana': request.data["idCampana"]
+                 'propietario': request.data["propietario"]
                  #falta poner los datos dependiendo del tipo
             }
-            if(request.data["idEstrategia"] != ""):
-                campos_recurso['estrategia'] = request.data["idEstrategia"]
-            if(request.data["idCampana"] != ""):
-                campos_recurso['campana'] = request.data["idCampana"]
+            if(request.data['idCampana']> 0 and request.data['idCampana'] != ""): campos_recurso['campana'] = request.data['idCampana']
             if(request.data["inicioVigencia"] != ""):
                 fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
                 campos_recurso['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
@@ -498,15 +535,10 @@ class RegistrarRecurso(APIView):
                  'inicioVigencia': request.data["inicioVigencia"],
                  'finVigencia': request.data["finVigencia"],
                  'estado': request.data["estado"],
-                 'propietario': request.data["propietario"],
-                 'estrategia': request.data["idEstrategia"],
-                 'campana': request.data["idCampana"]
+                 'propietario': request.data["propietario"]
                  #falta poner los datos dependiendo del tipo
             }
-            if(request.data["idEstrategia"] != ""):
-                campos_recurso['estrategia'] = request.data["idEstrategia"]
-            if(request.data["idCampana"] != ""):
-                campos_recurso['campana'] = request.data["idCampana"]
+            if(request.data['idCampana']> 0 and request.data['idCampana'] != ""): campos_recurso['campana'] = request.data['idCampana']
             if(request.data["inicioVigencia"] != ""):
                 fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
                 campos_recurso['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
@@ -628,6 +660,8 @@ class RegistrarIndicador(APIView):
 class FiltrarIndicadores(APIView):
     def post(self, request,id=0):
         cadena = request.data["cadena"]
+        aspecto = request.data["aspecto"]
+        tipo = request.data["tipo"]
         fechaCreacionIni = request.data["fechaCreacionIni"]
         fechaCreacionFin = request.data["fechaCreacionFin"]
         fechaModificacionIni = request.data["fechaModificacionIni"]
@@ -642,6 +676,10 @@ class FiltrarIndicadores(APIView):
         if (cadena != ""):
             subquery1.add(Q(nombre__contains=cadena), Q.OR)
             subquery3.add(Q(descripcion__contains=cadena), Q.OR)
+        if (aspecto != "" and aspecto in ['0','1','2','3']):
+            query.add(Q(aspecto=aspecto), Q.AND)
+        if (tipo != "" and tipo in ['0','1','2','3','4','5','6']):
+            query.add(Q(tipo=tipo), Q.AND)
         if(fechaCreacionIni != ""):
             fecha  = datetime.datetime.strptime(fechaCreacionIni, '%d-%m-%Y').date()
             query.add(Q(fechaCreacion__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
@@ -655,7 +693,7 @@ class FiltrarIndicadores(APIView):
             fecha  = datetime.datetime.strptime(fechaModificacionFin, '%d-%m-%Y').date()
             query.add(Q(fechaModificacion__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
         
-        indicadores = Indicador.objects.filter((subquery1 | subquery3) & query).values('id', 'nombre','fechaCreacion', 'fechaModificacion')
+        indicadores = Indicador.objects.filter((subquery1 | subquery3) & query).values('id', 'nombre','fechaCreacion', 'fechaModificacion','aspecto','tipo')
         listaIndicadores = list(indicadores)
         for indicador in listaIndicadores:
             indicador['fechaCreacion'] = datetime.datetime.strftime(indicador['fechaCreacion'], '%d-%m-%Y')
@@ -697,11 +735,11 @@ class FiltrarOportunidades(APIView):
         oportunidades = Oportunidad.objects.filter(( (subquery2) | (subquery3)) & subquery1).values('id', 'descripcion', 'estado', 'etapa', 'inicioVigencia', 'finVigencia')
         listaOportunidades = list(oportunidades)
         for oportunidad in listaOportunidades:
-            oportunidad['inicioVigencia'] = datetime.datetime.strftime(oportunidad['inicioVigencia'], '%d-%m-%Y')
-            oportunidad['finVigencia'] = datetime.datetime.strftime(oportunidad['finVigencia'], '%d-%m-%Y')
             fechaHoy  = datetime.datetime.strptime(fechaHoy, '%d-%m-%Y').date()
             fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
-            if oportunidad['inicioVigencia'] <= fecha and oportunidad['finVigencia'] >= fecha:
+            inicioVigencia = oportunidad['inicioVigencia'].replace(tzinfo=None)
+            finVigencia = oportunidad['finVigencia'].replace(tzinfo=None)
+            if inicioVigencia <= fecha and finVigencia >= fecha:
                 oportunidad['estado'] = 'Vigente'
             else:
                 oportunidad['estado'] = 'No vigente'
@@ -717,6 +755,8 @@ class FiltrarOportunidades(APIView):
                 oportunidad['etapa'] = 'Perdida'
             elif oportunidad['etapa'] == '5':
                 oportunidad['etapa'] = 'Ganada'
+            oportunidad['inicioVigencia'] = datetime.datetime.strftime(oportunidad['inicioVigencia'], '%d-%m-%Y')
+            oportunidad['finVigencia'] = datetime.datetime.strftime(oportunidad['finVigencia'], '%d-%m-%Y')
         return Response(listaOportunidades, status = status.HTTP_200_OK)
     
 class RegistrarOportunidad(APIView):
