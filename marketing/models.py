@@ -66,6 +66,10 @@ class Campana(models.Model):
     fechaCreacion = models.DateTimeField(auto_now_add=True)
     fechaModificacion = models.DateTimeField(auto_now=True)
 
+class CampanaXContacto(models.Model):
+    campana = models.ForeignKey(Campana, on_delete=models.CASCADE, null=True, blank=True)
+    contacto = models.ForeignKey(Contacto, on_delete=models.CASCADE, null=True, blank=True)
+
 class Recurso(models.Model):
     tipo_choices = [
         ('0', 'Correo'),
@@ -79,14 +83,14 @@ class Recurso(models.Model):
     redes_choices = [
         ('0', 'Facebook'),
         ('1', 'Linkedin'),
-        ('2', 'Twitter'),
-        ('3', 'Instagram'),
+        ('2', 'Instagram')
     ]
     audiencia_choices = [
         ('0', 'Público en general'),
         ('1', 'Seguidores'),
     ]
     id = models.BigAutoField(primary_key=True)
+    idUsuario = models.IntegerField(null=True, blank=True)
     campana = models.ForeignKey(Campana, on_delete=models.SET_NULL, null=True, blank=True)
     descripcion = models.CharField(max_length=200, null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
@@ -98,6 +102,7 @@ class Recurso(models.Model):
 
     asuntoCorreo = models.TextField(null=True, blank=True)
     remitenteCorreo = models.CharField(max_length=50, null=True, blank=True)
+    remitenteContrasena = models.TextField(null=True, blank=True)
 
     servicioRedSocial = models.CharField(max_length=20, choices=redes_choices, null=True, blank=True)
     usuarioRedSocial = models.CharField(max_length=50, null=True, blank=True)
@@ -108,9 +113,74 @@ class Recurso(models.Model):
     complementoDominio = models.TextField(null=True, blank=True)
 
     contenido = models.TextField(null=True, blank=True)
+    contenidoHTML = models.TextField(null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
     fechaCreacion = models.DateTimeField(auto_now_add=True)
     fechaModificacion = models.DateTimeField(auto_now=True)
+
+class RecursoXContacto(models.Model):
+    recurso = models.ForeignKey(Recurso, on_delete=models.CASCADE, null=True, blank=True)
+    contacto = models.ForeignKey(Contacto, on_delete=models.CASCADE, null=True, blank=True)
+
+
+class Reporte(models.Model):
+    tipo_choices = [
+        ('0', 'Plan'),
+        ('1', 'Programa'),
+        ('2', 'Campaña'),
+        ('3', 'Recurso'),
+        ('4', 'Oportunidad'),
+        ('5', 'Contacto'),
+        ('6', 'Empresa')
+    ]
+    id = models.BigAutoField(primary_key=True)
+    nombre = models.CharField(max_length=200, null=True, blank=True)
+    descripcion = models.CharField(max_length=200, null=True, blank=True)
+    tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
+    propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
+    fechaCreacion = models.DateTimeField(auto_now_add=True)
+    fechaModificacion = models.DateTimeField(auto_now=True)
+
+class Columna(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    reporte = models.ForeignKey(Reporte, on_delete=models.SET_NULL, null=True, blank=True)
+    nombre = models.CharField(max_length=200, null=True, blank=True)
+
+class Fila(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    reporte = models.ForeignKey(Reporte, on_delete=models.SET_NULL, null=True, blank=True)
+    contenido  = models.TextField(null=True, blank=True)
+
+class Dashboard(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    nombre = models.CharField(max_length=200, null=True, blank=True)
+    descripcion = models.CharField(max_length=200, null=True, blank=True)
+    principal = models.BooleanField(default=False)
+    propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
+    fechaCreacion = models.DateTimeField(auto_now_add=True)
+    fechaModificacion = models.DateTimeField(auto_now=True)
+
+class Componente(models.Model):
+    tipo_choices = [
+        ('0', 'Gráfico de barras'),
+        ('1', 'Gráfico lineal'),
+        ('2', 'Gráfico circular')
+    ]
+    id = models.BigAutoField(primary_key=True)
+    dashboard = models.ForeignKey(Dashboard, on_delete=models.SET_NULL, null=True, blank=True)
+    tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
+    titulo = models.CharField(max_length=50, null=True, blank=True)
+    subtitulo = models.CharField(max_length=50, null=True, blank=True)
+
+class ComponenteLabel(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    componente = models.ForeignKey(Componente, on_delete=models.SET_NULL, null=True, blank=True)
+    label = models.CharField(max_length=50, null=True, blank=True)
+
+class ComponenteCantidad(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    componente = models.ForeignKey(Componente, on_delete=models.SET_NULL, null=True, blank=True)
+    cantidad = models.FloatField(null=True, blank=True)
 
 class Propiedad(models.Model):
     tipo_choices = [
@@ -136,31 +206,35 @@ class Filtro(models.Model):
     ]
     id = models.BigAutoField(primary_key=True)
     lista = models.ForeignKey(Lista, on_delete=models.CASCADE, null=True, blank=True)
+    nombre = models.CharField(max_length=50, null=True, blank=True)
+    entidad = models.CharField(max_length=200, null=True, blank=True)
     propiedad = models.CharField(max_length=200, null=True, blank=True) #ver si se cambio por foreign key a propiedad
-    #fidReporte
+    reporte = models.ForeignKey(Reporte, on_delete=models.CASCADE, null=True, blank=True)
     evaluacion = models.CharField(max_length=20, choices=evaluacion_choices, null=True, blank=True)
     valorEvaluacion = models.CharField(max_length=200, null=True, blank=True)
 
 class Variable(models.Model):
+    tipo_choices = [
+        ('0', 'Plan'),
+        ('1', 'Programa'),
+        ('2', 'Campaña stand-alone'),
+        ('3', 'Campaña de programa'),
+        ('4', 'Correo'),
+        ('5', 'Publicación'),
+        ('6', 'Página web'),
+    ]
     id = models.BigAutoField(primary_key=True)
     nombre = models.CharField(max_length=200, null=True, blank=True)
     abreviatura = models.CharField(max_length=10, null=True, blank=True)
-    aspecto = models.CharField(max_length=50, null=True, blank=True)
-    tipo = models.CharField(max_length=50, null=True, blank=True)
+    tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
     automatica = models.BooleanField(default=False)
 
 class Indicador(models.Model):
-    aspecto_choices = [
-        ('0', 'Plan'),
-        ('1', 'Estrategia'),
-        ('2', 'Campaña'),
-        ('3', 'Recurso'),
-    ]
     tipo_choices = [
-        ('0', 'Programa'),
-        ('1', 'Campaña stand-alone'),
-        ('2', 'Campaña de programa'),
-        ('3', 'Campaña stand-alone'),
+        ('0', 'Plan'),
+        ('1', 'Programa'),
+        ('2', 'Campaña stand-alone'),
+        ('3', 'Campaña de programa'),
         ('4', 'Correo'),
         ('5', 'Publicación'),
         ('6', 'Página web'),
@@ -169,8 +243,8 @@ class Indicador(models.Model):
     nombre = models.CharField(max_length=100, null=True, blank=True)
     descripcion = models.CharField(max_length=200, null=True, blank=True)
     formula = models.TextField(null=True, blank=True)
-    aspecto = models.CharField(max_length=20, choices=aspecto_choices, null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
+    calculoAutomatico = models.BooleanField(default=False)
     automatica = models.BooleanField(default=False)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
     fechaCreacion = models.DateTimeField(auto_now_add=True)
@@ -183,7 +257,7 @@ class IndicadorAsignado(models.Model):
     estrategia = models.ForeignKey(Estrategia, on_delete=models.CASCADE, null=True, blank=True)
     campana = models.ForeignKey(Campana, on_delete=models.CASCADE, null=True, blank=True)
     recurso = models.ForeignKey(Recurso, on_delete=models.CASCADE, null=True, blank=True)
-    calculoAutomatico = models.BooleanField(default=False)
+    valor = models.FloatField(null=True, blank=True)
 
 class VariableXIndicador(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -208,8 +282,7 @@ class Oportunidad(models.Model):
         ('1', 'Vigente'),
     ]
     id = models.BigAutoField(primary_key=True)
-    campanaAsociada = models.ForeignKey(Campana, on_delete=models.SET_NULL, null=True, blank=True)
-    campanaStandAloneAsociada = models.ForeignKey(Estrategia, on_delete=models.SET_NULL, null=True, blank=True)
+    campana = models.ForeignKey(Campana, on_delete=models.SET_NULL, null=True, blank=True)
     descripcion = models.CharField(max_length=200, null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
     etapa = models.CharField(max_length=20, choices=etapa_choices, null=True, blank=True)
@@ -225,3 +298,18 @@ class Oportunidad(models.Model):
 class OportunidadXContacto(models.Model):
     oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, null=True, blank=True)
     contacto = models.ForeignKey(Contacto, on_delete=models.CASCADE, null=True, blank=True)
+
+class Flujo(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    nombre = models.CharField(max_length=100, null=True, blank=True)
+    descripcion = models.CharField(max_length=200, null=True, blank=True)
+    contenido = models.TextField(null=True, blank=True)
+    propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
+    fechaCreacion = models.DateTimeField(auto_now_add=True)
+    fechaModificacion = models.DateTimeField(auto_now=True)
+
+class Imagen(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    recurso = models.ForeignKey(Recurso, on_delete=models.SET_NULL, null=True, blank=True) 
+    contenido = models.TextField(null=True, blank=True)
+    enlace = models.TextField(null=True, blank=True)

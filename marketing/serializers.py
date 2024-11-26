@@ -19,9 +19,19 @@ class CampanaSerializer(serializers.ModelSerializer):
         model = Campana
         fields = '__all__'
 
+class CampanaXContactoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CampanaXContacto
+        fields = '__all__'
+
 class RecursoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recurso
+        fields = '__all__'
+
+class RecursoXContactoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecursoXContacto
         fields = '__all__'
 
 class PropiedadSerializer(serializers.ModelSerializer):
@@ -62,4 +72,49 @@ class OportunidadSerializer(serializers.ModelSerializer):
 class OportunidadXContactoSerializer(serializers.ModelSerializer):
     class Meta:
         model = OportunidadXContacto
+        fields = '__all__'
+
+class ReporteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reporte
+        fields = '__all__'
+
+class ColumnaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Columna
+        fields = '__all__'
+
+class FilaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Fila
+        fields = '__all__'
+
+class DashboardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dashboard
+        fields = '__all__'
+
+class ComponenteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Componente
+        fields = '__all__'
+
+class ComponenteLabelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ComponenteLabel
+        fields = '__all__'
+
+class ComponenteCantidadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ComponenteCantidad
+        fields = '__all__'
+
+class FlujoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flujo
+        fields = '__all__'
+
+class ImagenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Imagen
         fields = '__all__'

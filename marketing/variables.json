@@ -1,0 +1,72 @@
+[
+  {
+    "model": "marketing.variable",
+    "pk": 1,
+    "fields": {
+      "nombre": "Presupuesto de plan",
+      "abreviatura": "PRES_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  },
+  {
+    "model": "marketing.variable",
+    "pk": 2,
+    "fields": {
+      "nombre": "Cantidad de programas de plan",
+      "abreviatura": "TPRO_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  },
+  {
+    "model": "marketing.variable",
+    "pk": 3,
+    "fields": {
+      "nombre": "Presupuesto total de programas de plan",
+      "abreviatura": "PPRO_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  },
+  {
+    "model": "marketing.variable",
+    "pk": 2,
+    "fields": {
+      "nombre": "Cantidad de campañas stand-alone de plan",
+      "abreviatura": "TCPS_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  },
+  {
+    "model": "marketing.variable",
+    "pk": 3,
+    "fields": {
+      "nombre": "Presupuesto total de campañas stand-alone de plan",
+      "abreviatura": "PCPS_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  },
+  {
+    "model": "marketing.variable",
+    "pk": 2,
+    "fields": {
+      "nombre": "Cantidad de campañas de programa de plan",
+      "abreviatura": "TCPP_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  },
+  {
+    "model": "marketing.variable",
+    "pk": 3,
+    "fields": {
+      "nombre": "Presupuesto total de campañas de programa de plan",
+      "abreviatura": "PCPP_PLAN",
+      "tipo": "0",
+      "automatica": false
+    }
+  }
+]

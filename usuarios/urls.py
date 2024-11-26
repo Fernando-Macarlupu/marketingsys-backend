@@ -4,9 +4,14 @@ from usuarios.views import *
 urlpatterns = [
 
     path('detalleUsuario/<int:id>', BuscarDetalleUsuario.as_view()),
+    path('correosUsuario/<int:id>', BuscarCorreosUsuario.as_view()),
+    path('redesUsuario', BuscarRedesUsuario.as_view()),
     path('usuario/', UsuarioAPIView.as_view()),
     path('registrarUsuario', RegistrarUsuario.as_view()),
     path('login', Login.as_view()),
+    path('loginCorreo', LoginCorreo.as_view()),
+    path('enviarCodigoRecuperacion', EnviarCodigoRecuperacionAPIView.as_view()),
+    path('actualizarContrasena', ActualizarContrasena.as_view()),
 ]
 
 """

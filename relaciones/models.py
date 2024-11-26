@@ -122,6 +122,7 @@ class CuentaCorreo(models.Model):
     id = models.BigAutoField(primary_key=True)
     servicio = models.CharField(max_length=20, choices=servicio_choices, null=True, blank=True)
     direccion = models.CharField(max_length=50, null=True, blank=True)
+    contrasena = models.TextField(null=True, blank=True)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)
     contacto = models.ForeignKey(Contacto, on_delete=models.CASCADE, null=True, blank=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, null=True, blank=True)
@@ -133,8 +134,7 @@ class CuentaRedSocial(models.Model):
     redes_choices = [
         ('0', 'Facebook'),
         ('1', 'Linkedin'),
-        ('2', 'Twitter'),
-        ('3', 'Instagram'),
+        ('2', 'Instagram'),
     ]
     id = models.BigAutoField(primary_key=True)
     redSocial = models.CharField(max_length=20, choices=redes_choices, null=True, blank=True)

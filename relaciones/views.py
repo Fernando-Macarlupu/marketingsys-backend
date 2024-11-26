@@ -15,7 +15,7 @@ from relaciones.serializers import *
 from usuarios.models import *
 from usuarios.serializers import *
 from marketing.serializers import FiltroSerializer
-from marketing.models import Filtro
+from marketing.models import Filtro, CampanaXContacto, RecursoXContacto, OportunidadXContacto
 # Create your views here.
 
 
@@ -56,6 +56,9 @@ class BuscarDetalleContacto(APIView):
                     "direcciones": [],
                     "correo":{"servicio": "", "direccion": ""},
                     "redes": [],
+                    "campañas": [],
+                    "recursos": [],
+                    "oportunidades": [],
                     #"actividades": [],
                     "empresas": [],
                     "correosNoDisponibles": []
@@ -64,6 +67,55 @@ class BuscarDetalleContacto(APIView):
                 direcciones = Direccion.objects.filter(contacto__id = contacto['id']).values('pais','estado','ciudad','direccion','principal')
                 correo = CuentaCorreo.objects.filter(contacto__id = contacto['id']).values('servicio','direccion').first()
                 redes = CuentaRedSocial.objects.filter(contacto__id = contacto['id']).values('redSocial','nombreUsuario')
+
+                fechaHoy  = datetime.datetime.now()
+                campanas = CampanaXContacto.objects.filter(contacto__id = contacto['id']).values('campana__descripcion','campana__tipo', 'campana__estado','campana__inicioVigencia', 'campana__finVigencia')
+                campos_contacto['campanas'] = list(campanas)
+                for campana in campos_contacto['campanas']:
+                    campana['descripcion'] = campana['campana__descripcion']
+                    if campana['campana__tipo'] == "0": campana['tipo'] = "Campaña de programa"
+                    elif campana['campana__tipo'] == "1": campana['tipo'] = "Campaña stand-alone"
+                    fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
+                    inicioVigencia = campana['campana__inicioVigencia'].replace(tzinfo=None)
+                    finVigencia = campana['campana__finVigencia'].replace(tzinfo=None)
+                    if inicioVigencia <= fecha and finVigencia >= fecha:
+                        campana['estado'] = 'Vigente'
+                    else:
+                        campana['estado'] = 'No vigente'
+
+                recursos = RecursoXContacto.objects.filter(contacto__id = contacto['id']).values('recurso__descripcion','recurso__tipo', 'recurso__estado','recurso__inicioVigencia', 'recurso__finVigencia')
+                campos_contacto['recursos'] = list(recursos)
+                for recurso in campos_contacto['recursos']:
+                    recurso['descripcion'] = recurso['recurso__descripcion']
+                    if recurso['recurso__tipo'] == "0": recurso['tipo'] = "Correo"
+                    elif recurso['recurso__tipo'] == "1": recurso['tipo'] = "Publicación"
+                    elif recurso['recurso__tipo'] == "2": recurso['tipo'] = "Página web"
+                    fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
+                    inicioVigencia = recurso['recurso__inicioVigencia'].replace(tzinfo=None)
+                    finVigencia = recurso['recurso__finVigencia'].replace(tzinfo=None)
+                    if inicioVigencia <= fecha and finVigencia >= fecha:
+                        recurso['estado'] = 'Vigente'
+                    else:
+                        recurso['estado'] = 'No vigente'
+
+                oportunidades = OportunidadXContacto.objects.filter(contacto__id = contacto['id']).values('oportunidad__descripcion','oportunidad__etapa', 'oportunidad__estado','oportunidad__inicioVigencia', 'oportunidad__finVigencia')
+                campos_contacto['oportunidades'] = list(oportunidades)
+                for oportunidad in campos_contacto['oportunidades']:
+                    oportunidad['descripcion'] = oportunidad['oportunidad__descripcion']
+                    if oportunidad['oportunidad__etapa'] == "0": oportunidad['etapa'] = "Calificación"
+                    elif oportunidad['oportunidad__etapa'] == "1": oportunidad['etapa'] = "Necesidad de análisis"
+                    elif oportunidad['oportunidad__etapa'] == "2": oportunidad['etapa'] = "Propuesta"
+                    elif oportunidad['oportunidad__etapa'] == "3": oportunidad['etapa'] = "Negociación"
+                    elif oportunidad['oportunidad__etapa'] == "4": oportunidad['etapa'] = "Perdida"
+                    elif oportunidad['oportunidad__etapa'] == "5": oportunidad['etapa'] = "Ganada"
+                    fecha = datetime.datetime(fechaHoy.year,fechaHoy.month,fechaHoy.day, 0,0,0)
+                    inicioVigencia = oportunidad['oportunidad__inicioVigencia'].replace(tzinfo=None)
+                    finVigencia = oportunidad['oportunidad__finVigencia'].replace(tzinfo=None)
+                    if inicioVigencia <= fecha and finVigencia >= fecha:
+                        oportunidad['estado'] = 'Vigente'
+                    else:
+                        oportunidad['estado'] = 'No vigente'
+
                 #actividades = Actividad.objects.filter(contacto__id = contacto['id']).values('tipo','titulo','descripcion','fechaHora')
                 empresas = Contacto.objects.filter(id =contacto['id']).values('empresa__id','empresa__nombre','empresa__sector')
                 correosNoDisponibles = CuentaCorreo.objects.filter(contacto__id__gte = 1, contacto__propietario__id = contacto['propietario__id']).values('direccion')
@@ -77,14 +129,6 @@ class BuscarDetalleContacto(APIView):
                 campos_contacto['correosNoDisponibles'] = [d['direccion'] for d in correosNoDisponibles]
                 if correo is not None:
                     if correo['direccion'] in campos_contacto['correosNoDisponibles']: campos_contacto['correosNoDisponibles'].remove(correo['direccion'])
-                # for actividad in campos_contacto['actividades']:
-                #     fecha = str(actividad['fechaHora'].date().day) + "-" + str(actividad['fechaHora'].date().month) + "-" + str(actividad['fechaHora'].date().year)
-                #     hora = str(actividad['fechaHora'].time().hour)
-                #     minuto = str(actividad['fechaHora'].time().minute)
-                #     actividad['fecha'] = fecha
-                #     actividad['hora'] = hora
-                #     actividad['minuto'] = minuto
-                #     del actividad['fechaHora']
                 for empresa in campos_contacto['empresas']:
                     empresa['empresa'] = empresa['empresa__id']
                     empresa['nombre'] = empresa['empresa__nombre']
@@ -144,9 +188,9 @@ class RegistrarContacto(APIView):
                             'direccion': correo['direccion'],
                             'contacto': idContacto
                             }
-                if "gmail" in correo['direccion']:
+                if "@gmail" in correo['direccion']:
                     campos['servicio'] = "0"
-                elif "hotmail" in correo['direccion']:
+                elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
                     campos['servicio'] = "1"
                 correo_serializer = CuentaCorreoSerializer(data = campos)
                 if correo_serializer.is_valid():
@@ -250,9 +294,9 @@ class RegistrarContacto(APIView):
                             'direccion': correo['direccion'],
                             'contacto': idContacto
                             }
-                if "gmail" in correo['direccion']:
+                if "@gmail" in correo['direccion']:
                     campos['servicio'] = "0"
-                elif "hotmail" in correo['direccion']:
+                elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
                     campos['servicio'] = "1"
                 correo_serializer = CuentaCorreoSerializer(data = campos)
                 if correo_serializer.is_valid():
@@ -646,37 +690,25 @@ class EliminarContacto(APIView):
         if id is not None and id > 0:
             contacto = Contacto.objects.filter(id=id).values("persona__id").first()
             idPersona = contacto['persona__id']
-            contacto = Contacto.objects.filter(id=id).first()
-            if contacto is not None:
-                #print(contacto)
-                
-                Telefono.objects.filter(Q(contacto__id = id)).delete()
-                Direccion.objects.filter(Q(contacto__id = id)).delete()
-                CuentaCorreo.objects.filter(Q(contacto__id = id)).delete()
-                CuentaRedSocial.objects.filter(Q(contacto__id = id)).delete()
-                #Actividad.objects.filter(Q(contacto__id = id)).delete()
-                #ContactoXEmpresa.objects.filter(Q(contacto__id = id)).delete()
-                persona = Persona.objects.filter(id=idPersona).first()
-                contacto.delete()
-                persona.delete()
-                return Response('Contacto eliminado',status=status.HTTP_200_OK)
-            return Response('Contacto no encontrado',status=status.HTTP_200_OK)
+            Telefono.objects.filter(Q(contacto__id = id)).delete()
+            Direccion.objects.filter(Q(contacto__id = id)).delete()
+            CuentaCorreo.objects.filter(Q(contacto__id = id)).delete()
+            CuentaRedSocial.objects.filter(Q(contacto__id = id)).delete()
+            CampanaXContacto.objects.filter(Q(contacto__id = id)).delete()
+            RecursoXContacto.objects.filter(Q(contacto__id = id)).delete()
+            OportunidadXContacto.objects.filter(Q(contacto__id = id)).delete()
+            Contacto.objects.filter(id=id).delete()
+            Persona.objects.filter(id=idPersona).delete()
+            return Response('Contacto eliminado',status=status.HTTP_200_OK)
         return Response('Contacto no encontrado',status=status.HTTP_200_OK)
     
 class EliminarEmpresa(APIView):
     def delete(self, request,id=0):
-        if id is not None and id > 0:
-            empresa = Empresa.objects.filter(id=id).first()
-            if empresa is not None:
-                Telefono.objects.filter(Q(empresa__id = id)).delete()
-                Direccion.objects.filter(Q(empresa__id = id)).delete()
-                #CuentaCorreo.objects.filter(Q(empresa__id = id)).delete()
-                #CuentaRedSocial.objects.filter(Q(empresa__id = id)).delete()
-                #Actividad.objects.filter(Q(empresa__id = id)).delete()
-                #ContactoXEmpresa.objects.filter(Q(empresa__id = id)).delete()
-                empresa.delete() #revisar si funciona eliminar una empresa asociada a algun contacto, permite hacerlo?
-                return Response('Empresa eliminada',status=status.HTTP_200_OK)
-            return Response('Empresa no encontrada',status=status.HTTP_200_OK)
+        if id != "" and id > 0:
+            Telefono.objects.filter(Q(empresa__id = id)).delete()
+            Direccion.objects.filter(Q(empresa__id = id)).delete()
+            Empresa.objects.filter(id=id).delete()
+            return Response('Empresa eliminada',status=status.HTTP_200_OK)
         return Response('Empresa no encontrada',status=status.HTTP_200_OK)
 
 class CargarContactos(APIView):
@@ -702,10 +734,10 @@ class CargarContactos(APIView):
                             if(servicioCorreo[0]=="Google"): servicio = "0"
                             elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
                             direccion = servicioCorreo[1]
-                        elif "gmail" in correo:
+                        elif "@gmail" in correo:
                             servicio = "0"
                             direccion = correo
-                        elif "hotmail" in correo:
+                        elif "@hotmail" in correo or "@outlook" in correo:
                             servicio = "1"
                             direccion = correo
                         else:
@@ -837,7 +869,7 @@ class CargarContactos(APIView):
                     if empresaGuardada is not None:
                         idEmpresa = empresaGuardada['id']
                     else:
-                        campos_empresa ={"nombre": contacto["empresa"]["nombre"], "propietario": request.data["propietario"]}
+                        campos_empresa ={"nombre": contacto["empresa"]["nombre"], "propietario": request.data["propietario"], "tipo": "0"}
                         empresa_serializer = EmpresaSerializer(data=campos_empresa)
                         if empresa_serializer.is_valid():
                             idEmpresa = empresa_serializer.save()
@@ -1026,10 +1058,10 @@ class CargarEmpresas(APIView):
                                 if(servicioCorreo[0]=="Google"): servicio = "0"
                                 elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
                                 direccion = servicioCorreo[1]
-                            elif "gmail" in correo:
+                            elif "@gmail" in correo:
                                 servicio = "0"
                                 direccion = correo
-                            elif "hotmail" in correo:
+                            elif "@hotmail" in correo or "@outlook" in correo:
                                 servicio = "1"
                                 direccion = correo
                             else:
@@ -1233,6 +1265,11 @@ class AplicarFiltrosLista(APIView):
                         query.add(Q(id__in=contactosDireccion), Q.AND)
                     elif(filtro['propiedad'] == "estado"):
                         query.add(Q(estado=filtro['valorEvaluacion']), Q.AND)
+                    elif(filtro['propiedad'] == "calificado"):
+                        if(filtro['valorEvaluacion'] == "0"):
+                            query.add(Q(calificado=False), Q.AND)
+                        elif(filtro['valorEvaluacion'] == "1"):
+                            query.add(Q(calificado=True), Q.AND)
                     elif(filtro['propiedad'] == "red"):
                         redes = CuentaRedSocial.objects.filter(redSocial = filtro['valorEvaluacion']).values('contacto__id')
                         contactosRed = [red['contacto__id'] for red in list(redes)]
@@ -1256,8 +1293,37 @@ class AplicarFiltrosLista(APIView):
                             query.add(Q(fechaCreacion__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
                         elif(filtro['evaluacion'] == "4"):
                             query.add(Q(fechaCreacion__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
-                contactos = Contacto.objects.filter(query).values('id', 'fechaCreacion', 'fechaModificacion')
+                contactos = Contacto.objects.filter(query).values('id', 'persona__id', 'persona__nombreCompleto', 'estado','fechaCreacion', 'fechaModificacion','empresa__nombre')
                 elementos = list(contactos)
+                for contacto in elementos:
+                    contacto['fechaCreacion'] = datetime.datetime.strftime(contacto['fechaCreacion'], '%d-%m-%Y')
+                    contacto['fechaModificacion'] = datetime.datetime.strftime(contacto['fechaModificacion'], '%d-%m-%Y')
+                    if contacto['estado'] == '0':
+                        contacto['estado'] = 'Suscriptor'
+                    elif contacto['estado'] == '1':
+                        contacto['estado'] = 'Lead'
+                    elif contacto['estado'] == '2':
+                        contacto['estado'] = 'Oportunidad'
+                    elif contacto['estado'] == '3':
+                        contacto['estado'] = 'Cliente'
+                    telefonosContacto = Telefono.objects.filter(contacto__id =contacto['id']).values()
+                    if telefonosContacto.count()>0:
+                        contacto['telefono'] = telefonosContacto[0]['numero']
+                        for telefono in telefonosContacto:
+                            if telefono['principal'] == True: #ver si esta bien el if
+                                contacto['telefono'] = telefono['numero']
+                    else:
+                        contacto['telefono'] = '-'
+                    correoContacto = CuentaCorreo.objects.filter(contacto__id =contacto['id']).values().first()
+                    if correoContacto is not None:
+                        contacto['correo'] = correoContacto['direccion']
+                    else:
+                        contacto['correo'] = '-'
+                    if contacto['empresa__nombre'] is None:
+                        contacto['empresa'] = "-"
+                    else:
+                        contacto['empresa'] = contacto['empresa__nombre']
+                    del contacto['empresa__nombre']
             elif request.data["objeto"] == "1":
                 query = Q()
                 query.add(Q(propietario__id=idPropietario), Q.AND)
@@ -1294,13 +1360,13 @@ class AplicarFiltrosLista(APIView):
                         if(filtro['evaluacion'] == "0"):
                             query.add(Q(cantEmpleados=cantEmpleados), Q.AND)
                         elif(filtro['evaluacion'] == "1"):
-                            query.add(Q(cantEmpleados_lt=cantEmpleados), Q.AND)
+                            query.add(Q(cantEmpleados__lt=cantEmpleados), Q.AND)
                         elif(filtro['evaluacion'] == "2"):
-                            query.add(Q(cantEmpleados_gt=cantEmpleados), Q.AND)
+                            query.add(Q(cantEmpleados__gt=cantEmpleados), Q.AND)
                         elif(filtro['evaluacion'] == "3"):
-                            query.add(Q(cantEmpleados_lte=cantEmpleados), Q.AND)
+                            query.add(Q(cantEmpleados__lte=cantEmpleados), Q.AND)
                         elif(filtro['evaluacion'] == "4"):
-                            query.add(Q(cantEmpleados_gte=cantEmpleados), Q.AND)
+                            query.add(Q(cantEmpleados__gte=cantEmpleados), Q.AND)
                     elif(filtro['propiedad'] == "contacto"):
                         contactos = Contacto.objects.filter(empresa__id__gte = 1).values('empresa__id')
                         contactosEmpresa = [contacto['empresa__id'] for contacto in list(contactos)]
@@ -1324,8 +1390,32 @@ class AplicarFiltrosLista(APIView):
                             query.add(Q(fechaCreacion__lte=datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)), Q.AND)
                         elif(filtro['evaluacion'] == "4"):
                             query.add(Q(fechaCreacion__gte=datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)), Q.AND)
-                empresas = Empresa.objects.filter(query).values('id', 'fechaCreacion', 'fechaModificacion')
+                empresas = Empresa.objects.filter(query).values('id', 'nombre', 'sector', 'tipo','fechaCreacion', 'fechaModificacion')
                 elementos = list(empresas)
+                for empresa in elementos:
+                    empresa['fechaCreacion'] = datetime.datetime.strftime(empresa['fechaCreacion'], '%d-%m-%Y')
+                    empresa['fechaModificacion'] = datetime.datetime.strftime(empresa['fechaModificacion'], '%d-%m-%Y')            
+                    if empresa['tipo'] == '0':
+                        empresa['tipo'] = 'Cliente potencial'
+                    elif empresa['tipo'] == '1':
+                        empresa['tipo'] = 'Socio'
+                    elif empresa['tipo'] == '2':
+                        empresa['tipo'] = 'Revendedor'
+                    elif empresa['tipo'] == '3':
+                        empresa['tipo'] = 'Proveedor'
+                    telefonosEmpresa = Telefono.objects.filter(empresa__id =empresa['id']).values()
+                    if telefonosEmpresa.count()>0:
+                        empresa['telefono'] = telefonosEmpresa[0]['numero']
+                        for telefono in telefonosEmpresa:
+                            if telefono['principal'] == True: #ver si esta bien el if
+                                empresa['telefono'] = telefono['numero']
+                    else:
+                        empresa['telefono'] = '-'
+
+
+
+
+
         return Response(elementos, status = status.HTTP_200_OK)
 
 class RegistrarLista(APIView):
@@ -1336,7 +1426,7 @@ class RegistrarLista(APIView):
             ListaXEmpresa.objects.filter(Q(lista__id = idLista)).delete()
             Filtro.objects.filter(Q(lista__id = idLista)).delete()
             objeto = request.data["objeto"]
-            if objeto == 'Contacto':
+            if objeto == '0':
                 contactos = request.data["elementos"]
                 for contacto in contactos:
                     campos = {'contacto': contacto['id'],
@@ -1345,7 +1435,7 @@ class RegistrarLista(APIView):
                     contactoxlista_serializer = ListaXContactoSerializer(data = campos)
                     if contactoxlista_serializer.is_valid():
                         contactoxlista_serializer.save()
-            elif objeto == 'Empresa':
+            elif objeto == '1':
                 empresas = request.data["elementos"]
                 for empresa in empresas:
                     campos = {'empresa': empresa['id'],
@@ -1360,7 +1450,8 @@ class RegistrarLista(APIView):
                 campos = {'lista': idLista,
                           'propiedad': filtro['propiedad'], #cambiar esta parte
                           'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': str(filtro['valorEvaluacion']) 
+                          'valorEvaluacion': str(filtro['valorEvaluacion']) ,
+                          'nombre': filtro['nombre']
                         }
                 filtro_serializer = FiltroSerializer(data = campos)
                 if filtro_serializer.is_valid():
@@ -1378,6 +1469,7 @@ class RegistrarLista(APIView):
             if lista_serializer.is_valid():
                 lista_serializer.save()
         else:
+            objeto = request.data["objeto"]
             campos_lista = {
                 'nombre': request.data["descripcion"],
                  'descripcion': request.data["descripcion"],
@@ -1386,7 +1478,7 @@ class RegistrarLista(APIView):
                  'tamano': request.data["tamano"],
                  'propietario': request.data["propietario"]
             }
-            lista_serializer = ListaSerializer(lista, data=campos_lista)
+            lista_serializer = ListaSerializer(data=campos_lista)
             if lista_serializer.is_valid():
                 idLista = lista_serializer.save()
                 idLista = idLista.id
@@ -1395,13 +1487,14 @@ class RegistrarLista(APIView):
                 campos = {'lista': idLista,
                           'propiedad': filtro['propiedad'], #cambiar esta parte
                           'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': str(filtro['valorEvaluacion']) 
+                          'valorEvaluacion': str(filtro['valorEvaluacion']),
+                          'nombre': filtro['nombre']
                         }
                 filtro_serializer = FiltroSerializer(data = campos)
                 if filtro_serializer.is_valid():
                     filtro_serializer.save()
             objeto = request.data["objeto"]
-            if objeto == 'Contacto':
+            if objeto == '0':
                 contactos = request.data["elementos"]
                 for contacto in contactos:
                     campos = {'contacto': contacto['id'],
@@ -1410,7 +1503,7 @@ class RegistrarLista(APIView):
                     contactoxlista_serializer = ListaXContactoSerializer(data = campos)
                     if contactoxlista_serializer.is_valid():
                         contactoxlista_serializer.save()
-            elif objeto == 'Empresa':
+            elif objeto == '1':
                 empresas = request.data["elementos"]
                 for empresa in empresas:
                     campos = {'empresa': empresa['id'],
@@ -1424,3 +1517,103 @@ class RegistrarLista(APIView):
                         data={
                             'message': 'Lista registrada correctamente',
                         },)	
+
+class BuscarDetalleLista(APIView):
+    def get(self, request,id):
+        if id != "" and id > 0:
+            lista = Lista.objects.filter(id=id).values('id','nombre','descripcion', 'objeto', 'tipo', 'propietario__id').first()
+            if lista is not None:
+                campos_lista = {
+                    "idLista": lista['id'],
+                    "objeto": lista['objeto'],
+                    "tipo": lista['tipo'],
+                    "nombre": lista['nombre'],
+                    "descripcion": lista['descripcion'],
+                    "propietario": lista['propietario__id'],
+                    "filtros": [],
+                    "elementos": [],
+                }
+                if lista['objeto'] == "0":
+                    elementos = ListaXContacto.objects.filter(lista__id=lista['id']).values('contacto__id','contacto__estado','contacto__persona__nombreCompleto', 'contacto__empresa__nombre')
+                    campos_lista["elementos"] = list(elementos)
+                    for contacto in campos_lista["elementos"]:
+                        contacto['id'] = contacto['contacto__id']
+                        del contacto['contacto__id']
+
+                        if contacto['contacto__estado'] == '0':
+                            contacto['estado'] = 'Suscriptor'
+                        elif contacto['contacto__estado'] == '1':
+                            contacto['estado'] = 'Lead'
+                        elif contacto['contacto__estado'] == '2':
+                            contacto['estado'] = 'Oportunidad'
+                        elif contacto['contacto__estado'] == '3':
+                            contacto['estado'] = 'Cliente'
+                        del contacto['contacto__estado']
+
+                        contacto['persona__nombreCompleto'] = contacto['contacto__persona__nombreCompleto']
+                        del contacto['contacto__persona__nombreCompleto']
+
+                        telefonosContacto = Telefono.objects.filter(contacto__id =contacto['id']).values()
+                        if telefonosContacto.count()>0:
+                            contacto['telefono'] = telefonosContacto[0]['numero']
+                            for telefono in telefonosContacto:
+                                if telefono['principal'] == True: #ver si esta bien el if
+                                    contacto['telefono'] = telefono['numero']
+                        else:
+                            contacto['telefono'] = '-'
+                        correoContacto = CuentaCorreo.objects.filter(contacto__id =contacto['id']).values().first()
+                        if correoContacto is not None:
+                            contacto['correo'] = correoContacto['direccion']
+                        else:
+                            contacto['correo'] = '-'
+                        if contacto['contacto__empresa__nombre'] is None:
+                            contacto['empresa'] = "-"
+                        else:
+                            contacto['empresa'] = contacto['contacto__empresa__nombre']
+                        del contacto['contacto__empresa__nombre']
+                elif lista['objeto'] == "1":
+                    elementos = ListaXEmpresa.objects.filter(lista__id=lista['id']).values('empresa__id','empresa__nombre','empresa__tipo')
+                    campos_lista["elementos"] = list(elementos)
+                    for empresa in campos_lista["elementos"]:
+                        empresa['id'] = empresa['empresa__id']
+                        del empresa['empresa__id']
+
+                        empresa['nombre'] = empresa['empresa__nombre']
+                        del empresa['empresa__nombre']
+                        
+                        if empresa['empresa__tipo'] == '0':
+                            empresa['tipo'] = 'Cliente potencial'
+                        elif empresa['empresa__tipo'] == '1':
+                            empresa['tipo'] = 'Socio'
+                        elif empresa['empresa__tipo'] == '2':
+                            empresa['tipo'] = 'Revendedor'
+                        elif empresa['empresa__tipo'] == '3':
+                            empresa['tipo'] = 'Proveedor'
+                        del empresa['empresa__tipo']
+
+                        telefonosEmpresa = Telefono.objects.filter(empresa__id =empresa['id']).values()
+                        if telefonosEmpresa.count()>0:
+                            empresa['telefono'] = telefonosEmpresa[0]['numero']
+                            for telefono in telefonosEmpresa:
+                                if telefono['principal'] == True: #ver si esta bien el if
+                                    empresa['telefono'] = telefono['numero']
+                        else:
+                            empresa['telefono'] = '-'
+                
+                filtros = Filtro.objects.filter(lista__id = lista['id']).values('propiedad','evaluacion','valorEvaluacion','nombre') #faltan values
+                campos_lista['filtros'] = list(filtros)
+
+                return Response(campos_lista, status = status.HTTP_200_OK)
+            else:
+                return Response('No se ha encontrado a la estrategia', status = status.HTTP_200_OK)
+        return Response('No se ha encontrado a la estrategia', status = status.HTTP_200_OK)
+
+class EliminarLista(APIView):
+    def delete(self, request,id=0):
+        if id != "" and id > 0:
+            Filtro.objects.filter(Q(lista__id = id)).delete()
+            ListaXContacto.objects.filter(Q(lista__id = id)).delete()
+            ListaXEmpresa.objects.filter(Q(lista__id = id)).delete()
+            Lista.objects.filter(id=id).delete()
+            return Response('Lista eliminada',status=status.HTTP_200_OK)
+        return Response('Lista no encontrada',status=status.HTTP_200_OK)

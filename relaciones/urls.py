@@ -19,6 +19,8 @@ urlpatterns = [
 
     path('aplicarFiltrosLista', AplicarFiltrosLista.as_view()),
 
+    path('detalleLista/<int:id>', BuscarDetalleLista.as_view()),
     path('filtrarListas', FiltrarListas.as_view()),
     path('registrarLista', RegistrarLista.as_view()),
+    path('eliminarLista/<int:id>', EliminarLista.as_view()),
 ]
