@@ -2520,8 +2520,7 @@ class CrearComponenteInforme(APIView):
             #     for fila in filas:
             #         e
             # elif ejex == "plan-finVigencia":
-                for fila in filas:
-                    e
+                
             elif ejex=="programa-estado":
                 labelsx = ["No vigente", "Vigente"]
                 cantsy = [0,0]
