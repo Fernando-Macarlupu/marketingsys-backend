@@ -1,0 +1,38 @@
+[
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 1,
+      "fields": { "nombre": "Incluir al menos 8 caracteres" }
+    },
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 2,
+      "fields": { "nombre": "Incluir caracteres especiales" }
+    },
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 3,
+      "fields": { "nombre": "Incluir mayúsculas" }
+    },
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 4,
+      "fields": { "nombre": "Incluir minúsculas" }
+    },
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 5,
+      "fields": { "nombre": "Incluir dígitos" }
+    },
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 6,
+      "fields": { "nombre": "Contraseña segura" }
+    },
+    {
+      "model": "usuarios.politicacontrasena",
+      "pk": 7,
+      "fields": { "nombre": "Reutilizar contraseña" }
+    }
+  ]
+  

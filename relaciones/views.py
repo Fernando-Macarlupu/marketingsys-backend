@@ -16,6 +16,8 @@ from usuarios.models import *
 from usuarios.serializers import *
 from marketing.serializers import FiltroSerializer
 from marketing.models import Filtro, CampanaXContacto, RecursoXContacto, OportunidadXContacto
+from sistema.serializers import LogSerializer
+from sistema.models import Log
 # Create your views here.
 
 
@@ -151,177 +153,195 @@ class BuscarDetalleContacto(APIView):
 
 class RegistrarContacto(APIView):
     def post(self, request,id=0):
-        if request.data["idContacto"] is not None and request.data["idContacto"]>0:
-            idContacto = request.data["idContacto"]
-            persona = Contacto.objects.filter(id=idContacto).values("persona__id").first()
-            idPersona = persona['persona__id']
-            Telefono.objects.filter(Q(contacto__id = idContacto)).delete()
-            Direccion.objects.filter(Q(contacto__id = idContacto)).delete()
-            CuentaCorreo.objects.filter(Q(contacto__id = idContacto)).delete()
-            CuentaRedSocial.objects.filter(Q(contacto__id = idContacto)).delete()
-            #Actividad.objects.filter(Q(contacto__id = idContacto)).delete()
-            #ContactoXEmpresa.objects.filter(Q(contacto__id = idContacto)).delete()
-            telefonos = request.data["telefonos"]
-            for telefono in telefonos:
-                campos = {'numero': telefono['numero'],
-                          'principal': telefono['principal'],
-                        'contacto': idContacto
-                        }
-                telefono_serializer = TelefonoSerializer(data = campos)
-                if telefono_serializer.is_valid():
-                    telefono_serializer.save()
-            direcciones = request.data["direcciones"]
-            for direccion in direcciones:
-                campos = {'pais': direccion['pais'],
-                'estado': direccion['estado'],
-                'ciudad': direccion['ciudad'],
-                'direccion': direccion['direccion'],
-                          'principal': direccion['principal'],
-                        'contacto': idContacto
-                        }
-                direccion_serializer = DireccionSerializer(data = campos)
-                if direccion_serializer.is_valid():
-                    direccion_serializer.save()
-            correo = request.data["correo"]
-            if correo != {}:
-                campos = {'servicio': "",
-                            'direccion': correo['direccion'],
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idContacto"] is not None and request.data["idContacto"]>0:
+                idContacto = request.data["idContacto"]
+                persona = Contacto.objects.filter(id=idContacto).values("persona__id").first()
+                idPersona = persona['persona__id']
+                Telefono.objects.filter(Q(contacto__id = idContacto)).delete()
+                Direccion.objects.filter(Q(contacto__id = idContacto)).delete()
+                CuentaCorreo.objects.filter(Q(contacto__id = idContacto)).delete()
+                CuentaRedSocial.objects.filter(Q(contacto__id = idContacto)).delete()
+                #Actividad.objects.filter(Q(contacto__id = idContacto)).delete()
+                #ContactoXEmpresa.objects.filter(Q(contacto__id = idContacto)).delete()
+                telefonos = request.data["telefonos"]
+                for telefono in telefonos:
+                    campos = {'numero': telefono['numero'],
+                            'principal': telefono['principal'],
                             'contacto': idContacto
                             }
-                if "@gmail" in correo['direccion']:
-                    campos['servicio'] = "0"
-                elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
-                    campos['servicio'] = "1"
-                correo_serializer = CuentaCorreoSerializer(data = campos)
-                if correo_serializer.is_valid():
-                    correo_serializer.save()
-            redes = request.data["redes"]
-            for red in redes:
-                campos = {'redSocial': red['redSocial'],
-                          'nombreUsuario': red['nombreUsuario'],
-                        'contacto': idContacto
-                        }
-                red_serializer = CuentaRedSocialSerializer(data = campos)
-                if red_serializer.is_valid():
-                    red_serializer.save()
-            empresas = request.data["empresas"]
-            # for empresa in empresas:
-            #     campos = {'empresa': empresa['empresa'],
-            #             'contacto': idContacto
-            #             }
-            #     contacto_empresa_serializer = ContactoXEmpresaSerializer(data = campos)
-            #     if contacto_empresa_serializer.is_valid():
-            #         contacto_empresa_serializer.save()
-            # actividades = request.data["actividades"]
-            # for actividad in actividades:
-            #     fecha  = datetime.datetime.strptime(actividad['fecha'], '%d-%m-%Y').date()
-            #     campos = {'tipo': actividad['tipo'],
-            #               'titulo': actividad['titulo'],
-            #               'descripcion': actividad['descripcion'],
-            #               'fechaHora': datetime.datetime(fecha.year,fecha.month,fecha.day, actividad['hora'],actividad['minuto'],0),
-            #             'contacto': idContacto
-            #             }
-            #     actividad_serializer = ActividadSerializer(data = campos)
-            #     if actividad_serializer.is_valid():
-            #         actividad_serializer.save()
-            contacto = Contacto.objects.filter(id=idContacto).first()
-            campos_contacto = {
-                 'calificado': request.data["calificado"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if empresas!=[]:
-                campos_contacto['empresa'] = empresas[0]['empresa']
-            contacto_serializer = ContactoSerializer(contacto, data=campos_contacto)
-            if contacto_serializer.is_valid():
-                contacto_serializer.save()
-            persona = Persona.objects.filter(id=idPersona).first()
-            campos_persona = {
-                 'nombreCompleto': request.data["nombreCompleto"]
-            }
-            persona_serializer = PersonaSerializer(persona, data=campos_persona)
-            if persona_serializer.is_valid():
-                persona_serializer.save()
-        else:
-            campos_persona = {
-                 'nombreCompleto': request.data["nombreCompleto"]
-            }
-            persona_serializer = PersonaSerializer(data=campos_persona)
-            idPersona = 0
-            if persona_serializer.is_valid():
-                idPersona = persona_serializer.save()
-                idPersona = idPersona.id
-            empresas = request.data["empresas"]
-            campos_contacto = {
-                 'persona': idPersona,
-                 'calificado': request.data["calificado"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if empresas!=[]:
-                #print('tiene empresas')
-                campos_contacto['empresa'] = empresas[0]['empresa']
-            #print(campos_contacto)
-            contacto_serializer = ContactoSerializer(data=campos_contacto)
-            idContacto = 0
-            if contacto_serializer.is_valid():
-                idContacto = contacto_serializer.save()
-                idContacto = idContacto.id
-            telefonos = request.data["telefonos"]
-            for telefono in telefonos:
-                campos = {'numero': telefono['numero'],
-                          'principal': telefono['principal'],
-                        'contacto': idContacto
-                        }
-                telefono_serializer = TelefonoSerializer(data = campos)
-                if telefono_serializer.is_valid():
-                    telefono_serializer.save()
-            direcciones = request.data["direcciones"]
-            for direccion in direcciones:
-                campos = {'pais': direccion['pais'],
-                'estado': direccion['estado'],
-                'ciudad': direccion['ciudad'],
-                'direccion': direccion['direccion'],
-                          'principal': direccion['principal'],
-                        'contacto': idContacto
-                        }
-                direccion_serializer = DireccionSerializer(data = campos)
-                if direccion_serializer.is_valid():
-                    direccion_serializer.save()
-            correo = request.data["correo"]
-            if correo != {}:
-                campos = {'servicio': "",
-                            'direccion': correo['direccion'],
+                    telefono_serializer = TelefonoSerializer(data = campos)
+                    if telefono_serializer.is_valid():
+                        telefono_serializer.save()
+                direcciones = request.data["direcciones"]
+                for direccion in direcciones:
+                    campos = {'pais': direccion['pais'],
+                    'estado': direccion['estado'],
+                    'ciudad': direccion['ciudad'],
+                    'direccion': direccion['direccion'],
+                            'principal': direccion['principal'],
                             'contacto': idContacto
                             }
-                if "@gmail" in correo['direccion']:
-                    campos['servicio'] = "0"
-                elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
-                    campos['servicio'] = "1"
-                correo_serializer = CuentaCorreoSerializer(data = campos)
-                if correo_serializer.is_valid():
-                    correo_serializer.save()
-            redes = request.data["redes"]
-            for red in redes:
-                campos = {'redSocial': red['redSocial'],
-                          'nombreUsuario': red['nombreUsuario'],
-                        'contacto': idContacto
+                    direccion_serializer = DireccionSerializer(data = campos)
+                    if direccion_serializer.is_valid():
+                        direccion_serializer.save()
+                correo = request.data["correo"]
+                if correo != {}:
+                    campos = {'servicio': "",
+                                'direccion': correo['direccion'],
+                                'contacto': idContacto
+                                }
+                    if "@gmail" in correo['direccion']:
+                        campos['servicio'] = "0"
+                    elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
+                        campos['servicio'] = "1"
+                    correo_serializer = CuentaCorreoSerializer(data = campos)
+                    if correo_serializer.is_valid():
+                        correo_serializer.save()
+                redes = request.data["redes"]
+                for red in redes:
+                    campos = {'redSocial': red['redSocial'],
+                            'nombreUsuario': red['nombreUsuario'],
+                            'contacto': idContacto
+                            }
+                    red_serializer = CuentaRedSocialSerializer(data = campos)
+                    if red_serializer.is_valid():
+                        red_serializer.save()
+                empresas = request.data["empresas"]
+                contacto = Contacto.objects.filter(id=idContacto).first()
+                campos_contacto = {
+                    'calificado': request.data["calificado"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                if request.data["calificado"] == True:
+                    campos_contacto['fechaConversion'] = fechaActual
+                if empresas!=[]:
+                    campos_contacto['empresa'] = empresas[0]['empresa']
+                contacto_serializer = ContactoSerializer(contacto, data=campos_contacto)
+                if contacto_serializer.is_valid():
+                    contacto_serializer.save()
+                persona = Persona.objects.filter(id=idPersona).first()
+                campos_persona = {
+                    'nombreCompleto': request.data["nombreCompleto"],
+                        'fechaModificacion': fechaActual
+                }
+                persona_serializer = PersonaSerializer(persona, data=campos_persona)
+                if persona_serializer.is_valid():
+                    persona_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Contactos",
+                                'descripcion': "Modificación de contacto: " + request.data["nombreCompleto"],
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_persona = {
+                    'nombreCompleto': request.data["nombreCompleto"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                persona_serializer = PersonaSerializer(data=campos_persona)
+                idPersona = 0
+                if persona_serializer.is_valid():
+                    idPersona = persona_serializer.save()
+                    idPersona = idPersona.id
+                empresas = request.data["empresas"]
+                campos_contacto = {
+                    'persona': idPersona,
+                    'calificado': request.data["calificado"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                if empresas!=[]:
+                    #print('tiene empresas')
+                    campos_contacto['empresa'] = empresas[0]['empresa']
+                #print(campos_contacto)
+                contacto_serializer = ContactoSerializer(data=campos_contacto)
+                idContacto = 0
+                if contacto_serializer.is_valid():
+                    idContacto = contacto_serializer.save()
+                    idContacto = idContacto.id
+                telefonos = request.data["telefonos"]
+                for telefono in telefonos:
+                    campos = {'numero': telefono['numero'],
+                            'principal': telefono['principal'],
+                            'contacto': idContacto
+                            }
+                    telefono_serializer = TelefonoSerializer(data = campos)
+                    if telefono_serializer.is_valid():
+                        telefono_serializer.save()
+                direcciones = request.data["direcciones"]
+                for direccion in direcciones:
+                    campos = {'pais': direccion['pais'],
+                    'estado': direccion['estado'],
+                    'ciudad': direccion['ciudad'],
+                    'direccion': direccion['direccion'],
+                            'principal': direccion['principal'],
+                            'contacto': idContacto
+                            }
+                    direccion_serializer = DireccionSerializer(data = campos)
+                    if direccion_serializer.is_valid():
+                        direccion_serializer.save()
+                correo = request.data["correo"]
+                if correo != {}:
+                    campos = {'servicio': "",
+                                'direccion': correo['direccion'],
+                                'contacto': idContacto
+                                }
+                    if "@gmail" in correo['direccion']:
+                        campos['servicio'] = "0"
+                    elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
+                        campos['servicio'] = "1"
+                    correo_serializer = CuentaCorreoSerializer(data = campos)
+                    if correo_serializer.is_valid():
+                        correo_serializer.save()
+                redes = request.data["redes"]
+                for red in redes:
+                    campos = {'redSocial': red['redSocial'],
+                            'nombreUsuario': red['nombreUsuario'],
+                            'contacto': idContacto
+                            }
+                    red_serializer = CuentaRedSocialSerializer(data = campos)
+                    if red_serializer.is_valid():
+                        red_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Contactos",
+                                'descripcion': "Creación de contacto: " + request.data["nombreCompleto"],
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Contacto registrado correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Contactos",
+                        'codigo': "RCR001",
+                        'descripcion': "Error en registro de contacto",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                red_serializer = CuentaRedSocialSerializer(data = campos)
-                if red_serializer.is_valid():
-                    red_serializer.save()
-            #empresas = request.data["empresas"]
-            # for empresa in empresas:
-            #     campos = {'empresa': empresa['empresa'],
-            #             'contacto': idContacto
-            #             }
-            #     contacto_empresa_serializer = ContactoXEmpresaSerializer(data = campos)
-            #     if contacto_empresa_serializer.is_valid():
-            #         contacto_empresa_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Contacto registrado correctamente',
-                        },)	
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de contacto',
+                            },)	
 
 class FiltrarContactos(APIView):
     def post(self, request,id=0):
@@ -365,6 +385,7 @@ class FiltrarContactos(APIView):
         contactos = Contacto.objects.filter((subquery1 | subquery3 | subquery4) & query).values('id', 'persona__id', 'persona__nombreCompleto', 'estado','fechaCreacion', 'fechaModificacion','empresa__nombre')
         listaContactos = list(contactos)
         for contacto in listaContactos:
+            print(contacto['fechaCreacion'])
             contacto['fechaCreacion'] = datetime.datetime.strftime(contacto['fechaCreacion'], '%d-%m-%Y')
             contacto['fechaModificacion'] = datetime.datetime.strftime(contacto['fechaModificacion'], '%d-%m-%Y')
             if contacto['estado'] == '0':
@@ -464,164 +485,204 @@ class BuscarDetalleEmpresa(APIView):
 
 class RegistrarEmpresa(APIView):
     def post(self, request,id=0):
-        if request.data["idEmpresa"] is not None and request.data["idEmpresa"]>0:
-            idEmpresa = request.data["idEmpresa"]
-            Telefono.objects.filter(Q(empresa__id = idEmpresa)).delete()
-            Direccion.objects.filter(Q(empresa__id = idEmpresa)).delete()
-            #CuentaCorreo.objects.filter(Q(empresa__id = idEmpresa)).delete()
-            #CuentaRedSocial.objects.filter(Q(empresa__id = idEmpresa)).delete()
-            #Actividad.objects.filter(Q(empresa__id = idEmpresa)).delete()
-            #ContactoXEmpresa.objects.filter(Q(empresa__id = idEmpresa)).delete()
-            telefonos = request.data["telefonos"]
-            for telefono in telefonos:
-                campos = {'numero': telefono['numero'],
-                           'principal': telefono['principal'],
-                         'empresa': idEmpresa
-                         }
-                telefono_serializer = TelefonoSerializer(data = campos)
-                if telefono_serializer.is_valid():
-                    telefono_serializer.save()
-            direcciones = request.data["direcciones"]
-            for direccion in direcciones:
-                campos = {'pais': direccion['pais'],
-                'estado': direccion['estado'],
-                'ciudad': direccion['ciudad'],
-                'direccion': direccion['direccion'],
-                          'principal': direccion['principal'],
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idEmpresa"] is not None and request.data["idEmpresa"]>0:
+                idEmpresa = request.data["idEmpresa"]
+                Telefono.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                Direccion.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                #CuentaCorreo.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                #CuentaRedSocial.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                #Actividad.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                #ContactoXEmpresa.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                telefonos = request.data["telefonos"]
+                for telefono in telefonos:
+                    campos = {'numero': telefono['numero'],
+                            'principal': telefono['principal'],
+                            'empresa': idEmpresa
+                            }
+                    telefono_serializer = TelefonoSerializer(data = campos)
+                    if telefono_serializer.is_valid():
+                        telefono_serializer.save()
+                direcciones = request.data["direcciones"]
+                for direccion in direcciones:
+                    campos = {'pais': direccion['pais'],
+                    'estado': direccion['estado'],
+                    'ciudad': direccion['ciudad'],
+                    'direccion': direccion['direccion'],
+                            'principal': direccion['principal'],
+                            'empresa': idEmpresa
+                            }
+                    direccion_serializer = DireccionSerializer(data = campos)
+                    if direccion_serializer.is_valid():
+                        direccion_serializer.save()
+                # correos = request.data["correos"]
+                # for correo in correos:
+                #     campos = {'servicio': correo['servicio'],
+                #               'direccion': correo['direccion'],
+                #             'empresa': idEmpresa
+                #             }
+                #     correo_serializer = CuentaCorreoSerializer(data = campos)
+                #     if correo_serializer.is_valid():
+                #         correo_serializer.save()
+                # redes = request.data["redes"]
+                # for red in redes:
+                #     campos = {'redSocial': red['redSocial'],
+                #               'nombreUsuario': red['nombreUsuario'],
+                #             'empresa': idEmpresa
+                #             }
+                #     red_serializer = CuentaRedSocialSerializer(data = campos)
+                #     if red_serializer.is_valid():
+                #         red_serializer.save()
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    contactoEnBD = Contacto.objects.filter(id=contacto['contacto']).first()
+                    campos_contacto = {
                         'empresa': idEmpresa
-                        }
-                direccion_serializer = DireccionSerializer(data = campos)
-                if direccion_serializer.is_valid():
-                    direccion_serializer.save()
-            # correos = request.data["correos"]
-            # for correo in correos:
-            #     campos = {'servicio': correo['servicio'],
-            #               'direccion': correo['direccion'],
-            #             'empresa': idEmpresa
-            #             }
-            #     correo_serializer = CuentaCorreoSerializer(data = campos)
-            #     if correo_serializer.is_valid():
-            #         correo_serializer.save()
-            # redes = request.data["redes"]
-            # for red in redes:
-            #     campos = {'redSocial': red['redSocial'],
-            #               'nombreUsuario': red['nombreUsuario'],
-            #             'empresa': idEmpresa
-            #             }
-            #     red_serializer = CuentaRedSocialSerializer(data = campos)
-            #     if red_serializer.is_valid():
-            #         red_serializer.save()
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                contactoEnBD = Contacto.objects.filter(id=contacto['contacto']).first()
-                campos_contacto = {
-                    'empresa': idEmpresa
+                    }
+                    contacto_serializer = ContactoSerializer(contactoEnBD, data=campos_contacto)
+                    if contacto_serializer.is_valid():
+                        contacto_serializer.save()
+                    # campos = {'contacto': contacto['contacto'],
+                    #         'empresa': idEmpresa
+                    #         }
+                    # contacto_empresa_serializer = ContactoXEmpresaSerializer(data = campos)
+                    # if contacto_empresa_serializer.is_valid():
+                    #     contacto_empresa_serializer.save()
+                # actividades = request.data["actividades"]
+                # for actividad in actividades:
+                #     fecha  = datetime.datetime.strptime(actividad['fecha'], '%d-%m-%Y').date()
+                #     campos = {'tipo': actividad['tipo'],
+                #               'titulo': actividad['titulo'],
+                #               'descripcion': actividad['descripcion'],
+                #               'fechaHora': datetime.datetime(fecha.year,fecha.month,fecha.day, actividad['hora'],actividad['minuto'],0),
+                #             'empresa': idEmpresa
+                #             }
+                #     actividad_serializer = ActividadSerializer(data = campos)
+                #     if actividad_serializer.is_valid():
+                #         actividad_serializer.save()
+                empresa = Empresa.objects.filter(id=idEmpresa).first()
+                campos_empresa = {
+                    'nombre': request.data["nombre"],
+                    'sector': request.data["sector"],
+                    'cantEmpleados': request.data["cantEmpleados"],
+                    'tipo': request.data["tipo"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
                 }
-                contacto_serializer = ContactoSerializer(contactoEnBD, data=campos_contacto)
-                if contacto_serializer.is_valid():
-                    contacto_serializer.save()
-                # campos = {'contacto': contacto['contacto'],
-                #         'empresa': idEmpresa
-                #         }
-                # contacto_empresa_serializer = ContactoXEmpresaSerializer(data = campos)
-                # if contacto_empresa_serializer.is_valid():
-                #     contacto_empresa_serializer.save()
-            # actividades = request.data["actividades"]
-            # for actividad in actividades:
-            #     fecha  = datetime.datetime.strptime(actividad['fecha'], '%d-%m-%Y').date()
-            #     campos = {'tipo': actividad['tipo'],
-            #               'titulo': actividad['titulo'],
-            #               'descripcion': actividad['descripcion'],
-            #               'fechaHora': datetime.datetime(fecha.year,fecha.month,fecha.day, actividad['hora'],actividad['minuto'],0),
-            #             'empresa': idEmpresa
-            #             }
-            #     actividad_serializer = ActividadSerializer(data = campos)
-            #     if actividad_serializer.is_valid():
-            #         actividad_serializer.save()
-            empresa = Empresa.objects.filter(id=idEmpresa).first()
-            campos_empresa = {
-                 'nombre': request.data["nombre"],
-                 'sector': request.data["sector"],
-                 'cantEmpleados': request.data["cantEmpleados"],
-                 'tipo': request.data["tipo"],
-                 'propietario': request.data["propietario"]
-            }
-            empresa_serializer = EmpresaSerializer(empresa, data=campos_empresa)
-            if empresa_serializer.is_valid():
-                empresa_serializer.save()
-        else:
-            campos_empresa = {
-                 'nombre': request.data["nombre"],
-                 'sector': request.data["sector"],
-                 'cantEmpleados': request.data["cantEmpleados"],
-                 'tipo': request.data["tipo"],
-                 'propietario': request.data["propietario"]
-            }
-            empresa_serializer = EmpresaSerializer(data=campos_empresa)
-            idEmpresa = 0
-            if empresa_serializer.is_valid():
-                idEmpresa = empresa_serializer.save()
-                idEmpresa = idEmpresa.id
-            telefonos = request.data["telefonos"]
-            for telefono in telefonos:
-                campos = {'numero': telefono['numero'],
-                          'principal': telefono['principal'],
-                        'empresa': idEmpresa
-                        }
-                telefono_serializer = TelefonoSerializer(data = campos)
-                if telefono_serializer.is_valid():
-                    telefono_serializer.save()
-            direcciones = request.data["direcciones"]
-            for direccion in direcciones:
-                campos = {'pais': direccion['pais'],
-                'estado': direccion['estado'],
-                'ciudad': direccion['ciudad'],
-                'direccion': direccion['direccion'],
-                          'principal': direccion['principal'],
-                        'empresa': idEmpresa
-                        }
-                direccion_serializer = DireccionSerializer(data = campos)
-                if direccion_serializer.is_valid():
-                    direccion_serializer.save()
-            # correos = request.data["correos"]
-            # for correo in correos:
-            #     campos = {'servicio': correo['servicio'],
-            #               'direccion': correo['direccion'],
-            #             'empresa': idEmpresa
-            #             }
-            #     correo_serializer = CuentaCorreoSerializer(data = campos)
-            #     if correo_serializer.is_valid():
-            #         correo_serializer.save()
-            # redes = request.data["redes"]
-            # for red in redes:
-            #     campos = {'redSocial': red['redSocial'],
-            #               'nombreUsuario': red['nombreUsuario'],
-            #             'empresa': idEmpresa
-            #             }
-            #     red_serializer = CuentaRedSocialSerializer(data = campos)
-            #     if red_serializer.is_valid():
-            #         red_serializer.save()
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                contactoEnBD = Contacto.objects.filter(id=contacto['contacto']).first()
-                campos_contacto = {
-                    'empresa': idEmpresa
+                empresa_serializer = EmpresaSerializer(empresa, data=campos_empresa)
+                if empresa_serializer.is_valid():
+                    empresa_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Empresas",
+                                'descripcion': "Modificación de empresa: " + request.data["nombre"],
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_empresa = {
+                    'nombre': request.data["nombre"],
+                    'sector': request.data["sector"],
+                    'cantEmpleados': request.data["cantEmpleados"],
+                    'tipo': request.data["tipo"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
                 }
-                contacto_serializer = ContactoSerializer(contactoEnBD, data=campos_contacto)
-                if contacto_serializer.is_valid():
-                    contacto_serializer.save()
-            # contactos = request.data["contactos"]
-            # for contacto in contactos:
-            #     campos = {'contacto': contacto['contacto'],
-            #             'empresa': idEmpresa
-            #             }
-            #     contacto_empresa_serializer = ContactoXEmpresaSerializer(data = campos)
-            #     if contacto_empresa_serializer.is_valid():
-            #         contacto_empresa_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Empresa registrada correctamente',
-                        },)	
+                empresa_serializer = EmpresaSerializer(data=campos_empresa)
+                idEmpresa = 0
+                if empresa_serializer.is_valid():
+                    idEmpresa = empresa_serializer.save()
+                    idEmpresa = idEmpresa.id
+                telefonos = request.data["telefonos"]
+                for telefono in telefonos:
+                    campos = {'numero': telefono['numero'],
+                            'principal': telefono['principal'],
+                            'empresa': idEmpresa
+                            }
+                    telefono_serializer = TelefonoSerializer(data = campos)
+                    if telefono_serializer.is_valid():
+                        telefono_serializer.save()
+                direcciones = request.data["direcciones"]
+                for direccion in direcciones:
+                    campos = {'pais': direccion['pais'],
+                    'estado': direccion['estado'],
+                    'ciudad': direccion['ciudad'],
+                    'direccion': direccion['direccion'],
+                            'principal': direccion['principal'],
+                            'empresa': idEmpresa
+                            }
+                    direccion_serializer = DireccionSerializer(data = campos)
+                    if direccion_serializer.is_valid():
+                        direccion_serializer.save()
+                # correos = request.data["correos"]
+                # for correo in correos:
+                #     campos = {'servicio': correo['servicio'],
+                #               'direccion': correo['direccion'],
+                #             'empresa': idEmpresa
+                #             }
+                #     correo_serializer = CuentaCorreoSerializer(data = campos)
+                #     if correo_serializer.is_valid():
+                #         correo_serializer.save()
+                # redes = request.data["redes"]
+                # for red in redes:
+                #     campos = {'redSocial': red['redSocial'],
+                #               'nombreUsuario': red['nombreUsuario'],
+                #             'empresa': idEmpresa
+                #             }
+                #     red_serializer = CuentaRedSocialSerializer(data = campos)
+                #     if red_serializer.is_valid():
+                #         red_serializer.save()
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    contactoEnBD = Contacto.objects.filter(id=contacto['contacto']).first()
+                    campos_contacto = {
+                        'empresa': idEmpresa
+                    }
+                    contacto_serializer = ContactoSerializer(contactoEnBD, data=campos_contacto)
+                    if contacto_serializer.is_valid():
+                        contacto_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Empresas",
+                                'descripcion': "Creación de empresa: " + request.data["nombre"],
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+                # contactos = request.data["contactos"]
+                # for contacto in contactos:
+                #     campos = {'contacto': contacto['contacto'],
+                #             'empresa': idEmpresa
+                #             }
+                #     contacto_empresa_serializer = ContactoXEmpresaSerializer(data = campos)
+                #     if contacto_empresa_serializer.is_valid():
+                #         contacto_empresa_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Empresa registrada correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Empresas",
+                        'codigo': "RER001",
+                        'descripcion': "Error en registro de empresa",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de empresa',
+                            },)	
 
 class FiltrarEmpresas(APIView):
     def post(self, request,id=0):
@@ -687,369 +748,109 @@ class FiltrarEmpresas(APIView):
 
 class EliminarContacto(APIView):
     def delete(self, request,id=0):
-        if id is not None and id > 0:
-            contacto = Contacto.objects.filter(id=id).values("persona__id").first()
-            idPersona = contacto['persona__id']
-            Telefono.objects.filter(Q(contacto__id = id)).delete()
-            Direccion.objects.filter(Q(contacto__id = id)).delete()
-            CuentaCorreo.objects.filter(Q(contacto__id = id)).delete()
-            CuentaRedSocial.objects.filter(Q(contacto__id = id)).delete()
-            CampanaXContacto.objects.filter(Q(contacto__id = id)).delete()
-            RecursoXContacto.objects.filter(Q(contacto__id = id)).delete()
-            OportunidadXContacto.objects.filter(Q(contacto__id = id)).delete()
-            Contacto.objects.filter(id=id).delete()
-            Persona.objects.filter(id=idPersona).delete()
-            return Response('Contacto eliminado',status=status.HTTP_200_OK)
+        if id != "" and id > 0:
+            fechaActual = datetime.datetime.now()
+            contacto = Contacto.objects.filter(id=id).values("persona__id","persona__nombreCompleto","propietario__id").first()
+            if contacto is not None:
+                propietarioId = contacto['propietario__id']
+                nombre = contacto['persona__nombreCompleto']
+                idPersona = contacto['persona__id']
+                try:
+                    Telefono.objects.filter(Q(contacto__id = id)).delete()
+                    Direccion.objects.filter(Q(contacto__id = id)).delete()
+                    CuentaCorreo.objects.filter(Q(contacto__id = id)).delete()
+                    CuentaRedSocial.objects.filter(Q(contacto__id = id)).delete()
+                    CampanaXContacto.objects.filter(Q(contacto__id = id)).delete()
+                    RecursoXContacto.objects.filter(Q(contacto__id = id)).delete()
+                    OportunidadXContacto.objects.filter(Q(contacto__id = id)).delete()
+                    Contacto.objects.filter(id=id).delete()
+                    Persona.objects.filter(id=idPersona).delete()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Sección Contactos",
+                                    'descripcion': "Eliminación de contacto: " + nombre,
+                                    'propietario': propietarioId,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Contacto eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Contactos",
+                                'codigo': "RCE001",
+                                'descripcion': "Error en eliminación de contacto",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de contacto',
+                                    },)
         return Response('Contacto no encontrado',status=status.HTTP_200_OK)
     
 class EliminarEmpresa(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            Telefono.objects.filter(Q(empresa__id = id)).delete()
-            Direccion.objects.filter(Q(empresa__id = id)).delete()
-            Empresa.objects.filter(id=id).delete()
-            return Response('Empresa eliminada',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            empresa = Empresa.objects.filter(id=id).values("nombre","propietario__id").first()
+            if empresa is not None:
+                propietarioId = empresa['propietario__id']
+                nombre = empresa['nombre']
+                try:
+                    Telefono.objects.filter(Q(empresa__id = id)).delete()
+                    Direccion.objects.filter(Q(empresa__id = id)).delete()
+                    Empresa.objects.filter(id=id).delete()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Sección Empresas",
+                                    'descripcion': "Eliminación de empresa: " + nombre,
+                                    'propietario': propietarioId,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Empresa eliminada',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Empresas",
+                                'codigo': "REE001",
+                                'descripcion': "Error en eliminación de empresa",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de empresa',
+                                    },)
         return Response('Empresa no encontrada',status=status.HTTP_200_OK)
 
 class CargarContactos(APIView):
     def post(self, request,id=0):
-        if request.data["campos"] is not None and request.data["campos"]!=[]:
-            contactos = []
-            for dato in request.data["datos"]:
-                contacto = {"nombreCompleto": "","estado": "0","correo": {}, "redes": [], "telefonos": [], "direcciones": [], "empresa": {}}
-                for campo in request.data["campos"]:
-                    if(campo=="Nombre completo"):
-                        contacto['nombreCompleto'] = dato[campo]
-                    elif(campo=="Estado"):
-                        if(dato[campo]=="Suscriptor"): contacto['estado'] = "0"
-                        elif(dato[campo]=="Lead"): contacto['estado'] = "1"
-                        elif(dato[campo]=="Oportunidad"): contacto['estado'] = "2"
-                        elif(dato[campo]=="Cliente"): contacto['estado'] = "3"
-                    elif(campo=="Correo"):
-                        correo = str(dato[campo])
-                        servicio = ""
-                        direccion = ""
-                        if ":" in correo:
-                            servicioCorreo = correo.split(":")
-                            if(servicioCorreo[0]=="Google"): servicio = "0"
-                            elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
-                            direccion = servicioCorreo[1]
-                        elif "@gmail" in correo:
-                            servicio = "0"
-                            direccion = correo
-                        elif "@hotmail" in correo or "@outlook" in correo:
-                            servicio = "1"
-                            direccion = correo
-                        else:
-                            direccion = correo
-                        contacto['correo']={"servicio": servicio,"direccion": direccion}
-                    elif(campo=="Direcciones"):
-                        direcciones = str(dato[campo]).split(",")
-                        for direccionElemento in direcciones:
-                            principal = False
-                            direccion = ""
-                            if ":" in direccionElemento:
-                                direccionPrincipal = direccionElemento.split(":")
-                                if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
-                                direccion = direccionPrincipal[1]
-                            else:
-                                direccion = direccionElemento
-                            contacto['direcciones'].append({"direccion": direccion,"principal": principal})
-                    elif(campo=="Telefonos"):
-                        telefonos = str(dato[campo]).split(",")
-                        for telefono in telefonos:
-                            principal = False
-                            numero = ""
-                            if ":" in telefono:
-                                direccionPrincipal = telefono.split(":")
-                                if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
-                                numero = direccionPrincipal[1]
-                            else:
-                                numero = telefono
-                            contacto['telefonos'].append({"numero": numero,"principal": principal})
-                    elif(campo=="Redes"):
-                        redes = str(dato[campo]).split(",")
-                        for red in redes:
-                            redSocial = ""
-                            nombreUsuario = ""
-                            if ":" in red:
-                                redUsuario = red.split(":")
-                                if(redUsuario[0]=="Facebook"): redSocial = "0"
-                                elif(redUsuario[0]=="Linkedin"): redSocial = "1"
-                                elif(redUsuario[0]=="Twitter"): redSocial = "2"
-                                elif(redUsuario[0]=="Instagram"): redSocial = "3"
-                                nombreUsuario = redUsuario[1]
-                            else:
-                                nombreUsuario = red
-                            contacto['redes'].append({"redSocial": redSocial,"nombreUsuario": nombreUsuario})
-                    elif(campo=="Empresa"):
-                        contacto['empresa'] = {"nombre": str(dato[campo])}
-                        # empresas = str(dato[campo]).split(",")
-                        # for empresa in empresas:
-                        #     contacto['empresa'].append({"nombre": empresa})
-                contactos.append(contacto)
-            # for dato in request.data["datos"]:
-            #     contacto = {"nombreCompleto": "","estado": "0","correos": [], "redes": [], "telefonos": [], "direcciones": [], "empresas": []}
-            #     for campo in request.data["campos"]:
-            #         if(campo=="Nombre completo"):
-            #             contacto['nombreCompleto'] = dato[campo]
-            #         elif(campo=="Estado"):
-            #             if(dato[campo]=="Suscriptor"): contacto['estado'] = "0"
-            #             elif(dato[campo]=="Lead"): contacto['estado'] = "1"
-            #             elif(dato[campo]=="Oportunidad"): contacto['estado'] = "2"
-            #             elif(dato[campo]=="Cliente"): contacto['estado'] = "3"
-            #         elif(campo=="Correos"):
-            #             correos = str(dato[campo]).split(",")
-            #             for correo in correos:
-            #                 servicio = ""
-            #                 direccion = ""
-            #                 if ":" in correo:
-            #                     servicioCorreo = correo.split(":")
-            #                     if(servicioCorreo[0]=="Google"): servicio = "0"
-            #                     elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
-            #                     direccion = servicioCorreo[1]
-            #                 elif "gmail" in correo:
-            #                     servicio = "0"
-            #                     direccion = correo
-            #                 elif "hotmail" in correo:
-            #                     servicio = "1"
-            #                     direccion = correo
-            #                 else:
-            #                     direccion = correo
-            #                 contacto['correos'].append({"servicio": servicio,"direccion": direccion})
-            #         elif(campo=="Direcciones"):
-            #             direcciones = str(dato[campo]).split(",")
-            #             for direccionElemento in direcciones:
-            #                 principal = False
-            #                 direccion = ""
-            #                 if ":" in direccionElemento:
-            #                     direccionPrincipal = direccionElemento.split(":")
-            #                     if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
-            #                     direccion = direccionPrincipal[1]
-            #                 else:
-            #                     direccion = direccionElemento
-            #                 contacto['direcciones'].append({"direccion": direccion,"principal": principal})
-            #         elif(campo=="Telefonos"):
-            #             telefonos = str(dato[campo]).split(",")
-            #             for telefono in telefonos:
-            #                 principal = False
-            #                 numero = ""
-            #                 if ":" in telefono:
-            #                     direccionPrincipal = telefono.split(":")
-            #                     if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
-            #                     numero = direccionPrincipal[1]
-            #                 else:
-            #                     numero = telefono
-            #                 contacto['telefonos'].append({"numero": numero,"principal": principal})
-            #         elif(campo=="Redes"):
-            #             redes = str(dato[campo]).split(",")
-            #             for red in redes:
-            #                 redSocial = ""
-            #                 nombreUsuario = ""
-            #                 if ":" in red:
-            #                     redUsuario = red.split(":")
-            #                     if(redUsuario[0]=="Facebook"): redSocial = "0"
-            #                     elif(redUsuario[0]=="Linkedin"): redSocial = "1"
-            #                     elif(redUsuario[0]=="Twitter"): redSocial = "2"
-            #                     elif(redUsuario[0]=="Instagram"): redSocial = "3"
-            #                     nombreUsuario = redUsuario[1]
-            #                 else:
-            #                     nombreUsuario = red
-            #                 contacto['redes'].append({"redSocial": redSocial,"nombreUsuario": nombreUsuario})
-            #         elif(campo=="Empresas"):
-            #             empresas = str(dato[campo]).split(",")
-            #             for empresa in empresas:
-            #                 contacto['empresas'].append({"nombre": empresa})
-            #     contactos.append(contacto)
-            for contacto in contactos:
-                idEmpresa = 0
-                if contacto["empresa"] != {}:
-                    #ContactoXEmpresa.objects.filter(Q(contacto__id = idContacto)).delete()
-                    empresaGuardada = Empresa.objects.filter(nombre=contacto["empresa"]["nombre"], propietario__id = request.data["propietario"]).values("id").first()
-                    if empresaGuardada is not None:
-                        idEmpresa = empresaGuardada['id']
-                    else:
-                        campos_empresa ={"nombre": contacto["empresa"]["nombre"], "propietario": request.data["propietario"], "tipo": "0"}
-                        empresa_serializer = EmpresaSerializer(data=campos_empresa)
-                        if empresa_serializer.is_valid():
-                            idEmpresa = empresa_serializer.save()
-                            idEmpresa = idEmpresa.id
-                correoEnBD = None
-                if contacto["correo"] != {}:
-                    correoEnBD = CuentaCorreo.objects.filter(contacto__propietario__id = request.data["propietario"], direccion = contacto["correo"]["direccion"], contacto__id__gte = 1).values("contacto__id","contacto__persona__id").first()
-                idContacto = 0
-                idPersona = 0
-                if correoEnBD is not None:
-                    contactoGuardado = Contacto.objects.filter(id=correoEnBD['contacto__id']).first()
-                    idContacto = correoEnBD['contacto__id']
-                    campos_contacto = {
-                            'estado': contacto["estado"]
-                    }
-                    if idEmpresa != 0:
-                        campos_contacto['empresa'] = idEmpresa
-                    contacto_serializer = ContactoSerializer(contactoGuardado, data=campos_contacto)
-                    if contacto_serializer.is_valid():
-                        contacto_serializer.save()
-                    personaGuardada = Persona.objects.filter(id=correoEnBD['contacto__persona__id']).first()
-                    idPersona = correoEnBD['contacto__persona__id']
-                    campos_persona = {
-                        'nombreCompleto': contacto["nombreCompleto"]
-                    }
-                    persona_serializer = PersonaSerializer(personaGuardada, data=campos_persona)
-                    if persona_serializer.is_valid():
-                        persona_serializer.save()                        
-                else:
-                    campos_persona = {
-                        'nombreCompleto': contacto["nombreCompleto"]
-                    }
-                    persona_serializer = PersonaSerializer(data=campos_persona)
-                    if persona_serializer.is_valid():
-                        idPersona = persona_serializer.save()
-                        idPersona = idPersona.id
-                    campos_contacto = {
-                        'persona': idPersona,
-                        'propietario': request.data["propietario"],
-                        'estado': contacto["estado"]
-                    }
-                    if idEmpresa != 0:
-                        campos_contacto['empresa'] = idEmpresa
-                    contacto_serializer = ContactoSerializer(data=campos_contacto)
-                    if contacto_serializer.is_valid():
-                        idContacto = contacto_serializer.save()
-                        idContacto = idContacto.id
-                
-                contactoGuardadoBD = Contacto.objects.filter(id = idContacto).first()
-                telefonos = []
-                for tel in contacto["telefonos"]:
-                    nuevoTel = Telefono()
-                    nuevoTel.principal = tel['principal']
-                    nuevoTel.numero = tel['numero']
-                    nuevoTel.contacto = contactoGuardadoBD
-                    telefonos.append(nuevoTel)
-                direcciones = []
-                for dir in contacto["direcciones"]:
-                    nuevoDir = Direccion()
-                    nuevoDir.principal = dir['principal']
-                    nuevoDir.direccion = dir['direccion']
-                    nuevoDir.contacto = contactoGuardadoBD
-                    direcciones.append(nuevoDir)                    
-                redes = []
-                for red in contacto["redes"]:
-                    nuevaRed = CuentaRedSocial()
-                    nuevaRed.redSocial = red['redSocial']
-                    nuevaRed.nombreUsuario = red['nombreUsuario']
-                    nuevaRed.contacto = contactoGuardadoBD
-                    redes.append(nuevaRed)
-                if telefonos !=[]:
-                    Telefono.objects.filter(Q(contacto__id = idContacto)).delete()
-                    Telefono.objects.bulk_create(telefonos)
-                if direcciones !=[]:
-                    Direccion.objects.filter(Q(contacto__id = idContacto)).delete()
-                    Direccion.objects.bulk_create(direcciones)
-                if redes !=[]:
-                    CuentaRedSocial.objects.filter(Q(contacto__id = idContacto)).delete()
-                    CuentaRedSocial.objects.bulk_create(redes)  
-                if contacto["correo"] != {}:
-                    CuentaCorreo.objects.filter(Q(contacto__id = idContacto)).delete()
-                    campos = {'servicio': contacto["correo"]['servicio'],
-                            'direccion': contacto["correo"]['direccion'],
-                            'contacto': idContacto
-                            }
-                    correo_serializer = CuentaCorreoSerializer(data = campos)
-                    if correo_serializer.is_valid():
-                        correo_serializer.save()
-            return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Contactos cargados correctamente',
-                        },)	
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Contactos no cargados correctamente',
-                        },)	
-
-class CargarEmpresas(APIView):
-    def post(self, request,id=0):
-        if request.data["campos"] is not None and request.data["campos"]!=[]:
-            empresas = []
-            for dato in request.data["datos"]:
-                empresa = {"nombre": "","sector": "","pais": "","ciudad": "","cantEmpleados": 0,"tipo": "0", "telefonos": [], "direcciones": [], "contactos": []}
-                for campo in request.data["campos"]:
-                    if(campo=="Nombre"):
-                        empresa['nombre'] = dato[campo]
-                    elif(campo=="Sector"):
-                        empresa['sector'] = dato[campo]
-                    elif(campo=="Pais"):
-                        empresa['pais'] = dato[campo]
-                    elif(campo=="Ciudad"):
-                        empresa['ciudad'] = dato[campo]
-                    elif(campo=="Cantidad de empleados"):
-                        empresa['cantEmpleados'] = int(dato[campo])
-                    elif(campo=="Tipo"):
-                        if(dato[campo]=="Cliente potencial"): empresa['tipo'] = "0"
-                        elif(dato[campo]=="Socio"): empresa['tipo'] = "1"
-                        elif(dato[campo]=="Revendedor"): empresa['tipo'] = "2"
-                        elif(dato[campo]=="Proveedor"): empresa['tipo'] = "3"
-                    # elif(campo=="Correos"):
-                    #     correos = str(dato[campo]).split(",")
-                    #     for correo in correos:
-                    #         servicio = ""
-                    #         direccion = ""
-                    #         if ":" in correo:
-                    #             servicioCorreo = correo.split(":")
-                    #             if(servicioCorreo[0]=="Google"): servicio = "0"
-                    #             elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
-                    #             direccion = servicioCorreo[1]
-                    #         elif "gmail" in correo:
-                    #             servicio = "0"
-                    #             direccion = correo
-                    #         elif "hotmail" in correo:
-                    #             servicio = "1"
-                    #             direccion = correo
-                    #         else:
-                    #             direccion = correo
-                    #         empresa['correos'].append({"servicio": servicio,"direccion": direccion})
-                    elif(campo=="Telefonos"):
-                        telefonos = str(dato[campo]).split(",")
-                        for telefono in telefonos:
-                            principal = False
-                            numero = ""
-                            if ":" in telefono:
-                                telefonoPrincipal = telefono.split(":")
-                                if(telefonoPrincipal[0]=="Principal" or telefonoPrincipal[0]=="principal"): principal = True
-                                numero = telefonoPrincipal[1]
-                            else:
-                                numero = telefono
-                            empresa['telefonos'].append({"numero": numero,"principal": principal})
-                    elif(campo=="Direcciones"):
-                        direcciones = str(dato[campo]).split(",")
-                        for direccion in direcciones:
-                            principal = False
-                            detalleDireccion = ""
-                            if ":" in direccion:
-                                direccionPrincipal = telefono.split(":")
-                                if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
-                                detalleDireccion = direccionPrincipal[1]
-                            else:
-                                detalleDireccion = telefono
-                            empresa['direcciones'].append({"direccion": detalleDireccion,"principal": principal})
-                    # elif(campo=="Redes"):
-                    #     redes = str(dato[campo]).split(",")
-                    #     for red in redes:
-                    #         redSocial = ""
-                    #         nombreUsuario = ""
-                    #         if ":" in red:
-                    #             redUsuario = red.split(":")
-                    #             if(redUsuario[0]=="Facebook"): redSocial = "0"
-                    #             elif(redUsuario[0]=="Linkedin"): redSocial = "1"
-                    #             elif(redUsuario[0]=="Twitter"): redSocial = "2"
-                    #             elif(redUsuario[0]=="Instagram"): redSocial = "3"
-                    #             nombreUsuario = redUsuario[1]
-                    #         else:
-                    #             nombreUsuario = red
-                    #         empresa['redes'].append({"redSocial": redSocial,"nombreUsuario": nombreUsuario})
-                    elif(campo=="Correos de contacto"):
-                        contactos = str(dato[campo]).split(",")
-                        for correo in contactos:
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["campos"] is not None and request.data["campos"]!=[]:
+                contactos = []
+                for dato in request.data["datos"]:
+                    contacto = {"nombreCompleto": "","estado": "0","correo": {}, "redes": [], "telefonos": [], "direcciones": [], "empresa": {}}
+                    for campo in request.data["campos"]:
+                        if(campo=="Nombre completo"):
+                            contacto['nombreCompleto'] = dato[campo]
+                        elif(campo=="Estado"):
+                            if(dato[campo]=="Suscriptor"): contacto['estado'] = "0"
+                            elif(dato[campo]=="Lead"): contacto['estado'] = "1"
+                            elif(dato[campo]=="Oportunidad"): contacto['estado'] = "2"
+                            elif(dato[campo]=="Cliente"): contacto['estado'] = "3"
+                        elif(campo=="Correo"):
                             correo = str(dato[campo])
                             servicio = ""
                             direccion = ""
@@ -1066,118 +867,507 @@ class CargarEmpresas(APIView):
                                 direccion = correo
                             else:
                                 direccion = correo
-                            empresa['contactos'].append({"servicio": servicio,"direccion": direccion})
-                empresas.append(empresa)
-
-            for empresa in empresas:
-                empresaGuardadaValor = Empresa.objects.filter(nombre=empresa['nombre'], propietario__id = request.data["propietario"]).values("id").first()
-                idEmpresa = 0
-                if empresaGuardadaValor is not None:
-                    empresaGuardada = Empresa.objects.filter(id=empresaGuardadaValor['id']).first()
-                    idEmpresa = empresaGuardadaValor['id']
-                    Telefono.objects.filter(Q(empresa__id = idEmpresa)).delete()
-                    #CuentaCorreo.objects.filter(Q(empresa__id = idEmpresa)).delete()
-                    #CuentaRedSocial.objects.filter(Q(empresa__id = idEmpresa)).delete()
-                    #ContactoXEmpresa.objects.filter(Q(empresa__id = idEmpresa)).delete()
-                    campos_empresa = {
-                        'nombre': empresa["nombre"],
-                        'sector': empresa["sector"],
-                        'pais': empresa["pais"],
-                        'ciudad': empresa["ciudad"],
-                        'cantEmpleados': empresa["cantEmpleados"],
-                        'tipo': empresa["tipo"],
-                        'propietario': request.data["propietario"]
-                    }
-                    empresa_serializer = EmpresaSerializer(empresaGuardada, data=campos_empresa)
-                    if empresa_serializer.is_valid():
-                        empresa_serializer.save()                      
-                else:
-                    campos_empresa = {
-                        'nombre': empresa["nombre"],
-                        'sector': empresa["sector"],
-                        'pais': empresa["pais"],
-                        'ciudad': empresa["ciudad"],
-                        'cantEmpleados': empresa["cantEmpleados"],
-                        'tipo': empresa["tipo"],
-                        'propietario': request.data["propietario"]
-                    }
-                    empresa_serializer = EmpresaSerializer(data=campos_empresa)
-                    if empresa_serializer.is_valid():
-                        idEmpresa = empresa_serializer.save()
-                        idEmpresa = idEmpresa.id
-                empresaGuardadaBD = Empresa.objects.filter(id = idEmpresa).first()
-                telefonos = []
-                for tel in empresa["telefonos"]:
-                    nuevoTel = Telefono()
-                    nuevoTel.principal = tel['principal']
-                    nuevoTel.numero = tel['numero']
-                    nuevoTel.empresa = empresaGuardadaBD
-                    telefonos.append(nuevoTel)
-                direcciones = []
-                for dir in empresa["direcciones"]:
-                    nuevaDir = Direccion()
-                    nuevaDir.principal = dir['principal']
-                    nuevaDir.direccion = dir['direccion']
-                    nuevaDir.empresa = empresaGuardadaBD
-                    direcciones.append(nuevaDir)
-                # correos = []
-                # for cor in empresa["correos"]:
-                #     nuevoCor = CuentaCorreo()
-                #     nuevoCor.servicio = cor['servicio']
-                #     nuevoCor.direccion = cor['direccion']
-                #     nuevoCor.empresa = empresaGuardadaBD
-                #     correos.append(nuevoCor)
-                # redes = []
-                # for red in empresa["redes"]:
-                #     nuevaRed = CuentaRedSocial()
-                #     nuevaRed.redSocial = red['redSocial']
-                #     nuevaRed.nombreUsuario = red['nombreUsuario']
-                #     nuevaRed.empresa = empresaGuardadaBD
-                #     redes.append(nuevaRed)
-                for con in empresa["contactos"]:
-                    correoGuardado = CuentaCorreo.objects.filter(direccion=con['direccion'],contacto__propietario__id = request.data["propietario"]).values("contacto__id","persona__id").first()
-                    idPersona = 0
+                            contacto['correo']={"servicio": servicio,"direccion": direccion}
+                        elif(campo=="Direcciones"):
+                            direcciones = str(dato[campo]).split(",")
+                            for direccionElemento in direcciones:
+                                principal = False
+                                direccion = ""
+                                if ":" in direccionElemento:
+                                    direccionPrincipal = direccionElemento.split(":")
+                                    if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
+                                    direccion = direccionPrincipal[1]
+                                else:
+                                    direccion = direccionElemento
+                                contacto['direcciones'].append({"direccion": direccion,"principal": principal})
+                        elif(campo=="Telefonos"):
+                            telefonos = str(dato[campo]).split(",")
+                            for telefono in telefonos:
+                                principal = False
+                                numero = ""
+                                if ":" in telefono:
+                                    direccionPrincipal = telefono.split(":")
+                                    if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
+                                    numero = direccionPrincipal[1]
+                                else:
+                                    numero = telefono
+                                contacto['telefonos'].append({"numero": numero,"principal": principal})
+                        elif(campo=="Redes"):
+                            redes = str(dato[campo]).split(",")
+                            for red in redes:
+                                redSocial = ""
+                                nombreUsuario = ""
+                                if ":" in red:
+                                    redUsuario = red.split(":")
+                                    if(redUsuario[0]=="Facebook"): redSocial = "0"
+                                    elif(redUsuario[0]=="Linkedin"): redSocial = "1"
+                                    elif(redUsuario[0]=="Twitter"): redSocial = "2"
+                                    elif(redUsuario[0]=="Instagram"): redSocial = "3"
+                                    nombreUsuario = redUsuario[1]
+                                else:
+                                    nombreUsuario = red
+                                contacto['redes'].append({"redSocial": redSocial,"nombreUsuario": nombreUsuario})
+                        elif(campo=="Empresa"):
+                            contacto['empresa'] = {"nombre": str(dato[campo])}
+                            # empresas = str(dato[campo]).split(",")
+                            # for empresa in empresas:
+                            #     contacto['empresa'].append({"nombre": empresa})
+                    contactos.append(contacto)
+                # for dato in request.data["datos"]:
+                #     contacto = {"nombreCompleto": "","estado": "0","correos": [], "redes": [], "telefonos": [], "direcciones": [], "empresas": []}
+                #     for campo in request.data["campos"]:
+                #         if(campo=="Nombre completo"):
+                #             contacto['nombreCompleto'] = dato[campo]
+                #         elif(campo=="Estado"):
+                #             if(dato[campo]=="Suscriptor"): contacto['estado'] = "0"
+                #             elif(dato[campo]=="Lead"): contacto['estado'] = "1"
+                #             elif(dato[campo]=="Oportunidad"): contacto['estado'] = "2"
+                #             elif(dato[campo]=="Cliente"): contacto['estado'] = "3"
+                #         elif(campo=="Correos"):
+                #             correos = str(dato[campo]).split(",")
+                #             for correo in correos:
+                #                 servicio = ""
+                #                 direccion = ""
+                #                 if ":" in correo:
+                #                     servicioCorreo = correo.split(":")
+                #                     if(servicioCorreo[0]=="Google"): servicio = "0"
+                #                     elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
+                #                     direccion = servicioCorreo[1]
+                #                 elif "gmail" in correo:
+                #                     servicio = "0"
+                #                     direccion = correo
+                #                 elif "hotmail" in correo:
+                #                     servicio = "1"
+                #                     direccion = correo
+                #                 else:
+                #                     direccion = correo
+                #                 contacto['correos'].append({"servicio": servicio,"direccion": direccion})
+                #         elif(campo=="Direcciones"):
+                #             direcciones = str(dato[campo]).split(",")
+                #             for direccionElemento in direcciones:
+                #                 principal = False
+                #                 direccion = ""
+                #                 if ":" in direccionElemento:
+                #                     direccionPrincipal = direccionElemento.split(":")
+                #                     if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
+                #                     direccion = direccionPrincipal[1]
+                #                 else:
+                #                     direccion = direccionElemento
+                #                 contacto['direcciones'].append({"direccion": direccion,"principal": principal})
+                #         elif(campo=="Telefonos"):
+                #             telefonos = str(dato[campo]).split(",")
+                #             for telefono in telefonos:
+                #                 principal = False
+                #                 numero = ""
+                #                 if ":" in telefono:
+                #                     direccionPrincipal = telefono.split(":")
+                #                     if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
+                #                     numero = direccionPrincipal[1]
+                #                 else:
+                #                     numero = telefono
+                #                 contacto['telefonos'].append({"numero": numero,"principal": principal})
+                #         elif(campo=="Redes"):
+                #             redes = str(dato[campo]).split(",")
+                #             for red in redes:
+                #                 redSocial = ""
+                #                 nombreUsuario = ""
+                #                 if ":" in red:
+                #                     redUsuario = red.split(":")
+                #                     if(redUsuario[0]=="Facebook"): redSocial = "0"
+                #                     elif(redUsuario[0]=="Linkedin"): redSocial = "1"
+                #                     elif(redUsuario[0]=="Twitter"): redSocial = "2"
+                #                     elif(redUsuario[0]=="Instagram"): redSocial = "3"
+                #                     nombreUsuario = redUsuario[1]
+                #                 else:
+                #                     nombreUsuario = red
+                #                 contacto['redes'].append({"redSocial": redSocial,"nombreUsuario": nombreUsuario})
+                #         elif(campo=="Empresas"):
+                #             empresas = str(dato[campo]).split(",")
+                #             for empresa in empresas:
+                #                 contacto['empresas'].append({"nombre": empresa})
+                #     contactos.append(contacto)
+                for contacto in contactos:
+                    idEmpresa = 0
+                    if contacto["empresa"] != {}:
+                        #ContactoXEmpresa.objects.filter(Q(contacto__id = idContacto)).delete()
+                        empresaGuardada = Empresa.objects.filter(nombre=contacto["empresa"]["nombre"], propietario__id = request.data["propietario"]).values("id").first()
+                        if empresaGuardada is not None:
+                            idEmpresa = empresaGuardada['id']
+                        else:
+                            campos_empresa ={"nombre": contacto["empresa"]["nombre"], "propietario": request.data["propietario"], "tipo": "0", 'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual}
+                            empresa_serializer = EmpresaSerializer(data=campos_empresa)
+                            if empresa_serializer.is_valid():
+                                idEmpresa = empresa_serializer.save()
+                                idEmpresa = idEmpresa.id
+                    correoEnBD = None
+                    if contacto["correo"] != {}:
+                        correoEnBD = CuentaCorreo.objects.filter(contacto__propietario__id = request.data["propietario"], direccion = contacto["correo"]["direccion"], contacto__id__gte = 1).values("contacto__id","contacto__persona__id").first()
                     idContacto = 0
-                    if correoGuardado is not None:
-                        idContacto = correoGuardado['contacto__id']
+                    idPersona = 0
+                    if correoEnBD is not None:
+                        contactoGuardado = Contacto.objects.filter(id=correoEnBD['contacto__id']).first()
+                        idContacto = correoEnBD['contacto__id']
+                        campos_contacto = {
+                                'estado': contacto["estado"],
+                        'fechaModificacion': fechaActual
+                        }
+                        if idEmpresa != 0:
+                            campos_contacto['empresa'] = idEmpresa
+                        contacto_serializer = ContactoSerializer(contactoGuardado, data=campos_contacto)
+                        if contacto_serializer.is_valid():
+                            contacto_serializer.save()
+                        personaGuardada = Persona.objects.filter(id=correoEnBD['contacto__persona__id']).first()
+                        idPersona = correoEnBD['contacto__persona__id']
+                        campos_persona = {
+                            'nombreCompleto': contacto["nombreCompleto"],
+                        'fechaModificacion': fechaActual
+                        }
+                        persona_serializer = PersonaSerializer(personaGuardada, data=campos_persona)
+                        if persona_serializer.is_valid():
+                            persona_serializer.save()                        
                     else:
-                        campos_persona ={"nombreCompleto": ""}
+                        campos_persona = {
+                            'nombreCompleto': contacto["nombreCompleto"],
+                            'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                        }
                         persona_serializer = PersonaSerializer(data=campos_persona)
                         if persona_serializer.is_valid():
                             idPersona = persona_serializer.save()
                             idPersona = idPersona.id
-                        campos_contacto ={"estado": "0","persona": idPersona ,"propietario": request.data["propietario"]}
+                        campos_contacto = {
+                            'persona': idPersona,
+                            'propietario': request.data["propietario"],
+                            'estado': contacto["estado"],
+                            'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                        }
+                        if idEmpresa != 0:
+                            campos_contacto['empresa'] = idEmpresa
                         contacto_serializer = ContactoSerializer(data=campos_contacto)
                         if contacto_serializer.is_valid():
                             idContacto = contacto_serializer.save()
                             idContacto = idContacto.id
-                        campos_correo = {"servicio": con['servicio'], "direccion": con['direccion'], "contacto": idContacto}
-                        correo_serializer = CuentaCorreoSerializer(data=campos_correo)
+                    
+                    contactoGuardadoBD = Contacto.objects.filter(id = idContacto).first()
+                    telefonos = []
+                    for tel in contacto["telefonos"]:
+                        nuevoTel = Telefono()
+                        nuevoTel.principal = tel['principal']
+                        nuevoTel.numero = tel['numero']
+                        nuevoTel.contacto = contactoGuardadoBD
+                        telefonos.append(nuevoTel)
+                    direcciones = []
+                    for dir in contacto["direcciones"]:
+                        nuevoDir = Direccion()
+                        nuevoDir.principal = dir['principal']
+                        nuevoDir.direccion = dir['direccion']
+                        nuevoDir.contacto = contactoGuardadoBD
+                        direcciones.append(nuevoDir)                    
+                    redes = []
+                    for red in contacto["redes"]:
+                        nuevaRed = CuentaRedSocial()
+                        nuevaRed.redSocial = red['redSocial']
+                        nuevaRed.nombreUsuario = red['nombreUsuario']
+                        nuevaRed.contacto = contactoGuardadoBD
+                        redes.append(nuevaRed)
+                    if telefonos !=[]:
+                        Telefono.objects.filter(Q(contacto__id = idContacto)).delete()
+                        Telefono.objects.bulk_create(telefonos)
+                    if direcciones !=[]:
+                        Direccion.objects.filter(Q(contacto__id = idContacto)).delete()
+                        Direccion.objects.bulk_create(direcciones)
+                    if redes !=[]:
+                        CuentaRedSocial.objects.filter(Q(contacto__id = idContacto)).delete()
+                        CuentaRedSocial.objects.bulk_create(redes)  
+                    if contacto["correo"] != {}:
+                        CuentaCorreo.objects.filter(Q(contacto__id = idContacto)).delete()
+                        campos = {'servicio': contacto["correo"]['servicio'],
+                                'direccion': contacto["correo"]['direccion'],
+                                'contacto': idContacto
+                                }
+                        correo_serializer = CuentaCorreoSerializer(data = campos)
                         if correo_serializer.is_valid():
                             correo_serializer.save()
-                    contactoGuardadoBD = Contacto.objects.filter(id=idContacto).first()
-                    campos_contacto_empresa = {"empresa": idEmpresa}
-                    contacto_serializer = ContactoSerializer(contactoGuardadoBD, data=campos_contacto_empresa)
-                    if contacto_serializer.is_valid():
-                        contacto_serializer.save()
-                if telefonos !=[]:
-                    Telefono.objects.bulk_create(telefonos)
-                if direcciones !=[]:
-                    Direccion.objects.bulk_create(direcciones)
-                # if correos !=[]:
-                #     CuentaCorreo.objects.bulk_create(correos)
-                # if redes !=[]:
-                #     CuentaRedSocial.objects.bulk_create(redes)
-                #if empresasContacto !=[]:
-                #    ContactoXEmpresa.objects.bulk_create(empresasContacto)                
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Contactos",
+                                'descripcion': "Carga de contactos",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+                return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Contactos cargados correctamente',
+                            },)	
             return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Empresas cargadas correctamente',
-                        },)	
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Empresas no cargadas correctamente',
-                        },)	                    
+                            data={
+                                'message': 'Contactos no cargados correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Contactos",
+                        'codigo': "RCR002",
+                        'descripcion': "Error en carga de contactos",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en carga de contactos',
+                            },)	
+
+class CargarEmpresas(APIView):
+    def post(self, request,id=0):
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["campos"] is not None and request.data["campos"]!=[]:
+                empresas = []
+                for dato in request.data["datos"]:
+                    empresa = {"nombre": "","sector": "","pais": "","ciudad": "","cantEmpleados": 0,"tipo": "0", "telefonos": [], "direcciones": [], "contactos": []}
+                    for campo in request.data["campos"]:
+                        if(campo=="Nombre"):
+                            empresa['nombre'] = dato[campo]
+                        elif(campo=="Sector"):
+                            empresa['sector'] = dato[campo]
+                        elif(campo=="Pais"):
+                            empresa['pais'] = dato[campo]
+                        elif(campo=="Ciudad"):
+                            empresa['ciudad'] = dato[campo]
+                        elif(campo=="Cantidad de empleados"):
+                            empresa['cantEmpleados'] = int(dato[campo])
+                        elif(campo=="Tipo"):
+                            if(dato[campo]=="Cliente potencial"): empresa['tipo'] = "0"
+                            elif(dato[campo]=="Socio"): empresa['tipo'] = "1"
+                            elif(dato[campo]=="Revendedor"): empresa['tipo'] = "2"
+                            elif(dato[campo]=="Proveedor"): empresa['tipo'] = "3"
+                        # elif(campo=="Correos"):
+                        #     correos = str(dato[campo]).split(",")
+                        #     for correo in correos:
+                        #         servicio = ""
+                        #         direccion = ""
+                        #         if ":" in correo:
+                        #             servicioCorreo = correo.split(":")
+                        #             if(servicioCorreo[0]=="Google"): servicio = "0"
+                        #             elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
+                        #             direccion = servicioCorreo[1]
+                        #         elif "gmail" in correo:
+                        #             servicio = "0"
+                        #             direccion = correo
+                        #         elif "hotmail" in correo:
+                        #             servicio = "1"
+                        #             direccion = correo
+                        #         else:
+                        #             direccion = correo
+                        #         empresa['correos'].append({"servicio": servicio,"direccion": direccion})
+                        elif(campo=="Telefonos"):
+                            telefonos = str(dato[campo]).split(",")
+                            for telefono in telefonos:
+                                principal = False
+                                numero = ""
+                                if ":" in telefono:
+                                    telefonoPrincipal = telefono.split(":")
+                                    if(telefonoPrincipal[0]=="Principal" or telefonoPrincipal[0]=="principal"): principal = True
+                                    numero = telefonoPrincipal[1]
+                                else:
+                                    numero = telefono
+                                empresa['telefonos'].append({"numero": numero,"principal": principal})
+                        elif(campo=="Direcciones"):
+                            direcciones = str(dato[campo]).split(",")
+                            for direccion in direcciones:
+                                principal = False
+                                detalleDireccion = ""
+                                if ":" in direccion:
+                                    direccionPrincipal = telefono.split(":")
+                                    if(direccionPrincipal[0]=="Principal" or direccionPrincipal[0]=="principal"): principal = True
+                                    detalleDireccion = direccionPrincipal[1]
+                                else:
+                                    detalleDireccion = telefono
+                                empresa['direcciones'].append({"direccion": detalleDireccion,"principal": principal})
+                        # elif(campo=="Redes"):
+                        #     redes = str(dato[campo]).split(",")
+                        #     for red in redes:
+                        #         redSocial = ""
+                        #         nombreUsuario = ""
+                        #         if ":" in red:
+                        #             redUsuario = red.split(":")
+                        #             if(redUsuario[0]=="Facebook"): redSocial = "0"
+                        #             elif(redUsuario[0]=="Linkedin"): redSocial = "1"
+                        #             elif(redUsuario[0]=="Twitter"): redSocial = "2"
+                        #             elif(redUsuario[0]=="Instagram"): redSocial = "3"
+                        #             nombreUsuario = redUsuario[1]
+                        #         else:
+                        #             nombreUsuario = red
+                        #         empresa['redes'].append({"redSocial": redSocial,"nombreUsuario": nombreUsuario})
+                        elif(campo=="Correos de contacto"):
+                            contactos = str(dato[campo]).split(",")
+                            for correo in contactos:
+                                correo = str(dato[campo])
+                                servicio = ""
+                                direccion = ""
+                                if ":" in correo:
+                                    servicioCorreo = correo.split(":")
+                                    if(servicioCorreo[0]=="Google"): servicio = "0"
+                                    elif(servicioCorreo[0]=="Microsoft"): servicio = "1"
+                                    direccion = servicioCorreo[1]
+                                elif "@gmail" in correo:
+                                    servicio = "0"
+                                    direccion = correo
+                                elif "@hotmail" in correo or "@outlook" in correo:
+                                    servicio = "1"
+                                    direccion = correo
+                                else:
+                                    direccion = correo
+                                empresa['contactos'].append({"servicio": servicio,"direccion": direccion})
+                    empresas.append(empresa)
+
+                for empresa in empresas:
+                    empresaGuardadaValor = Empresa.objects.filter(nombre=empresa['nombre'], propietario__id = request.data["propietario"]).values("id").first()
+                    idEmpresa = 0
+                    if empresaGuardadaValor is not None:
+                        empresaGuardada = Empresa.objects.filter(id=empresaGuardadaValor['id']).first()
+                        idEmpresa = empresaGuardadaValor['id']
+                        Telefono.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                        #CuentaCorreo.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                        #CuentaRedSocial.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                        #ContactoXEmpresa.objects.filter(Q(empresa__id = idEmpresa)).delete()
+                        campos_empresa = {
+                            'nombre': empresa["nombre"],
+                            'sector': empresa["sector"],
+                            'pais': empresa["pais"],
+                            'ciudad': empresa["ciudad"],
+                            'cantEmpleados': empresa["cantEmpleados"],
+                            'tipo': empresa["tipo"],
+                            'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                        }
+                        empresa_serializer = EmpresaSerializer(empresaGuardada, data=campos_empresa)
+                        if empresa_serializer.is_valid():
+                            empresa_serializer.save()                      
+                    else:
+                        campos_empresa = {
+                            'nombre': empresa["nombre"],
+                            'sector': empresa["sector"],
+                            'pais': empresa["pais"],
+                            'ciudad': empresa["ciudad"],
+                            'cantEmpleados': empresa["cantEmpleados"],
+                            'tipo': empresa["tipo"],
+                            'propietario': request.data["propietario"],
+                            'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                        }
+                        empresa_serializer = EmpresaSerializer(data=campos_empresa)
+                        if empresa_serializer.is_valid():
+                            idEmpresa = empresa_serializer.save()
+                            idEmpresa = idEmpresa.id
+                    empresaGuardadaBD = Empresa.objects.filter(id = idEmpresa).first()
+                    telefonos = []
+                    for tel in empresa["telefonos"]:
+                        nuevoTel = Telefono()
+                        nuevoTel.principal = tel['principal']
+                        nuevoTel.numero = tel['numero']
+                        nuevoTel.empresa = empresaGuardadaBD
+                        telefonos.append(nuevoTel)
+                    direcciones = []
+                    for dir in empresa["direcciones"]:
+                        nuevaDir = Direccion()
+                        nuevaDir.principal = dir['principal']
+                        nuevaDir.direccion = dir['direccion']
+                        nuevaDir.empresa = empresaGuardadaBD
+                        direcciones.append(nuevaDir)
+                    # correos = []
+                    # for cor in empresa["correos"]:
+                    #     nuevoCor = CuentaCorreo()
+                    #     nuevoCor.servicio = cor['servicio']
+                    #     nuevoCor.direccion = cor['direccion']
+                    #     nuevoCor.empresa = empresaGuardadaBD
+                    #     correos.append(nuevoCor)
+                    # redes = []
+                    # for red in empresa["redes"]:
+                    #     nuevaRed = CuentaRedSocial()
+                    #     nuevaRed.redSocial = red['redSocial']
+                    #     nuevaRed.nombreUsuario = red['nombreUsuario']
+                    #     nuevaRed.empresa = empresaGuardadaBD
+                    #     redes.append(nuevaRed)
+                    for con in empresa["contactos"]:
+                        correoGuardado = CuentaCorreo.objects.filter(direccion=con['direccion'],contacto__propietario__id = request.data["propietario"]).values("contacto__id","persona__id").first()
+                        idPersona = 0
+                        idContacto = 0
+                        if correoGuardado is not None:
+                            idContacto = correoGuardado['contacto__id']
+                        else:
+                            campos_persona ={"nombreCompleto": "", 'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual}
+                            persona_serializer = PersonaSerializer(data=campos_persona)
+                            if persona_serializer.is_valid():
+                                idPersona = persona_serializer.save()
+                                idPersona = idPersona.id
+                            campos_contacto ={"estado": "0","persona": idPersona ,"propietario": request.data["propietario"], 'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual}
+                            contacto_serializer = ContactoSerializer(data=campos_contacto)
+                            if contacto_serializer.is_valid():
+                                idContacto = contacto_serializer.save()
+                                idContacto = idContacto.id
+                            campos_correo = {"servicio": con['servicio'], "direccion": con['direccion'], "contacto": idContacto}
+                            correo_serializer = CuentaCorreoSerializer(data=campos_correo)
+                            if correo_serializer.is_valid():
+                                correo_serializer.save()
+                        contactoGuardadoBD = Contacto.objects.filter(id=idContacto).first()
+                        campos_contacto_empresa = {"empresa": idEmpresa}
+                        contacto_serializer = ContactoSerializer(contactoGuardadoBD, data=campos_contacto_empresa)
+                        if contacto_serializer.is_valid():
+                            contacto_serializer.save()
+                    if telefonos !=[]:
+                        Telefono.objects.bulk_create(telefonos)
+                    if direcciones !=[]:
+                        Direccion.objects.bulk_create(direcciones)
+                    # if correos !=[]:
+                    #     CuentaCorreo.objects.bulk_create(correos)
+                    # if redes !=[]:
+                    #     CuentaRedSocial.objects.bulk_create(redes)
+                    #if empresasContacto !=[]:
+                    #    ContactoXEmpresa.objects.bulk_create(empresasContacto)                
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Empresas",
+                                'descripcion': "Carga de empresas",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+                return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Empresas cargadas correctamente',
+                            },)	
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Empresas no cargadas correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Empresas",
+                        'codigo': "RER002",
+                        'descripcion': "Error en carga de empresas",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en carga de empresas',
+                            },)		                    
 
 class FiltrarListas(APIView):
     def post(self, request,id=0):
@@ -1420,103 +1610,142 @@ class AplicarFiltrosLista(APIView):
 
 class RegistrarLista(APIView):
     def post(self, request,id=0):
-        if request.data["idLista"] is not None and request.data["idLista"]>0:
-            idLista = request.data["idLista"]
-            ListaXContacto.objects.filter(Q(lista__id = idLista)).delete()
-            ListaXEmpresa.objects.filter(Q(lista__id = idLista)).delete()
-            Filtro.objects.filter(Q(lista__id = idLista)).delete()
-            objeto = request.data["objeto"]
-            if objeto == '0':
-                contactos = request.data["elementos"]
-                for contacto in contactos:
-                    campos = {'contacto': contacto['id'],
-                            'lista': idLista
-                            }
-                    contactoxlista_serializer = ListaXContactoSerializer(data = campos)
-                    if contactoxlista_serializer.is_valid():
-                        contactoxlista_serializer.save()
-            elif objeto == '1':
-                empresas = request.data["elementos"]
-                for empresa in empresas:
-                    campos = {'empresa': empresa['id'],
-                            'lista': idLista
-                            }
-                    empresaxlista_serializer = ListaXEmpresaSerializer(data = campos)
-                    if empresaxlista_serializer.is_valid():
-                        empresaxlista_serializer.save()
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idLista"] is not None and request.data["idLista"]>0:
+                idLista = request.data["idLista"]
+                ListaXContacto.objects.filter(Q(lista__id = idLista)).delete()
+                ListaXEmpresa.objects.filter(Q(lista__id = idLista)).delete()
+                Filtro.objects.filter(Q(lista__id = idLista)).delete()
+                objeto = request.data["objeto"]
+                if objeto == '0':
+                    contactos = request.data["elementos"]
+                    for contacto in contactos:
+                        campos = {'contacto': contacto['id'],
+                                'lista': idLista
+                                }
+                        contactoxlista_serializer = ListaXContactoSerializer(data = campos)
+                        if contactoxlista_serializer.is_valid():
+                            contactoxlista_serializer.save()
+                elif objeto == '1':
+                    empresas = request.data["elementos"]
+                    for empresa in empresas:
+                        campos = {'empresa': empresa['id'],
+                                'lista': idLista
+                                }
+                        empresaxlista_serializer = ListaXEmpresaSerializer(data = campos)
+                        if empresaxlista_serializer.is_valid():
+                            empresaxlista_serializer.save()
 
-            filtros = request.data["filtros"]
-            for filtro in filtros:
-                campos = {'lista': idLista,
-                          'propiedad': filtro['propiedad'], #cambiar esta parte
-                          'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': str(filtro['valorEvaluacion']) ,
-                          'nombre': filtro['nombre']
-                        }
-                filtro_serializer = FiltroSerializer(data = campos)
-                if filtro_serializer.is_valid():
-                    filtro_serializer.save()
-            lista = Lista.objects.filter(id=idLista).first()
-            campos_lista = {
-                'nombre': request.data["descripcion"],
-                 'descripcion': request.data["descripcion"],
-                 'objeto': objeto,
-                 'tipo': request.data["tipo"],
-                 'tamano': request.data["tamano"],
-                 'propietario': request.data["propietario"]
-            }
-            lista_serializer = ListaSerializer(lista, data=campos_lista)
-            if lista_serializer.is_valid():
-                lista_serializer.save()
-        else:
-            objeto = request.data["objeto"]
-            campos_lista = {
-                'nombre': request.data["descripcion"],
-                 'descripcion': request.data["descripcion"],
-                 'objeto': objeto,
-                 'tipo': request.data["tipo"],
-                 'tamano': request.data["tamano"],
-                 'propietario': request.data["propietario"]
-            }
-            lista_serializer = ListaSerializer(data=campos_lista)
-            if lista_serializer.is_valid():
-                idLista = lista_serializer.save()
-                idLista = idLista.id
-            filtros = request.data["filtros"]
-            for filtro in filtros:
-                campos = {'lista': idLista,
-                          'propiedad': filtro['propiedad'], #cambiar esta parte
-                          'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': str(filtro['valorEvaluacion']),
-                          'nombre': filtro['nombre']
-                        }
-                filtro_serializer = FiltroSerializer(data = campos)
-                if filtro_serializer.is_valid():
-                    filtro_serializer.save()
-            objeto = request.data["objeto"]
-            if objeto == '0':
-                contactos = request.data["elementos"]
-                for contacto in contactos:
-                    campos = {'contacto': contacto['id'],
-                            'lista': idLista
+                filtros = request.data["filtros"]
+                for filtro in filtros:
+                    campos = {'lista': idLista,
+                            'propiedad': filtro['propiedad'], #cambiar esta parte
+                            'evaluacion': filtro['evaluacion'],
+                            'valorEvaluacion': str(filtro['valorEvaluacion']) ,
+                            'nombre': filtro['nombre']
                             }
-                    contactoxlista_serializer = ListaXContactoSerializer(data = campos)
-                    if contactoxlista_serializer.is_valid():
-                        contactoxlista_serializer.save()
-            elif objeto == '1':
-                empresas = request.data["elementos"]
-                for empresa in empresas:
-                    campos = {'empresa': empresa['id'],
-                            'lista': idLista
+                    filtro_serializer = FiltroSerializer(data = campos)
+                    if filtro_serializer.is_valid():
+                        filtro_serializer.save()
+                lista = Lista.objects.filter(id=idLista).first()
+                campos_lista = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'objeto': objeto,
+                    'tipo': request.data["tipo"],
+                    'tamano': request.data["tamano"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                lista_serializer = ListaSerializer(lista, data=campos_lista)
+                if lista_serializer.is_valid():
+                    lista_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Listas",
+                                'descripcion': "Modificación de lista: " + request.data["nombre"],
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                objeto = request.data["objeto"]
+                campos_lista = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'objeto': objeto,
+                    'tipo': request.data["tipo"],
+                    'tamano': request.data["tamano"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                lista_serializer = ListaSerializer(data=campos_lista)
+                if lista_serializer.is_valid():
+                    idLista = lista_serializer.save()
+                    idLista = idLista.id
+                filtros = request.data["filtros"]
+                for filtro in filtros:
+                    campos = {'lista': idLista,
+                            'propiedad': filtro['propiedad'], #cambiar esta parte
+                            'evaluacion': filtro['evaluacion'],
+                            'valorEvaluacion': str(filtro['valorEvaluacion']),
+                            'nombre': filtro['nombre']
                             }
-                    empresaxlista_serializer = ListaXEmpresaSerializer(data = campos)
-                    if empresaxlista_serializer.is_valid():
-                        empresaxlista_serializer.save()
-
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Lista registrada correctamente',
-                        },)	
+                    filtro_serializer = FiltroSerializer(data = campos)
+                    if filtro_serializer.is_valid():
+                        filtro_serializer.save()
+                objeto = request.data["objeto"]
+                if objeto == '0':
+                    contactos = request.data["elementos"]
+                    for contacto in contactos:
+                        campos = {'contacto': contacto['id'],
+                                'lista': idLista
+                                }
+                        contactoxlista_serializer = ListaXContactoSerializer(data = campos)
+                        if contactoxlista_serializer.is_valid():
+                            contactoxlista_serializer.save()
+                elif objeto == '1':
+                    empresas = request.data["elementos"]
+                    for empresa in empresas:
+                        campos = {'empresa': empresa['id'],
+                                'lista': idLista
+                                }
+                        empresaxlista_serializer = ListaXEmpresaSerializer(data = campos)
+                        if empresaxlista_serializer.is_valid():
+                            empresaxlista_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Sección Listas",
+                                'descripcion': "Creación de lista: " + request.data["nombre"],
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Lista registrada correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Listas",
+                        'codigo': "RLR001",
+                        'descripcion': "Error en registro de lista",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de lista',
+                            },)	
 
 class BuscarDetalleLista(APIView):
     def get(self, request,id):
@@ -1611,9 +1840,40 @@ class BuscarDetalleLista(APIView):
 class EliminarLista(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            Filtro.objects.filter(Q(lista__id = id)).delete()
-            ListaXContacto.objects.filter(Q(lista__id = id)).delete()
-            ListaXEmpresa.objects.filter(Q(lista__id = id)).delete()
-            Lista.objects.filter(id=id).delete()
-            return Response('Lista eliminada',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            lista = Lista.objects.filter(id=id).values("nombre","propietario__id").first()
+            if lista is not None:
+                propietarioId = lista['propietario__id']
+                nombre = lista['nombre']
+                try:
+                    Filtro.objects.filter(Q(lista__id = id)).delete()
+                    ListaXContacto.objects.filter(Q(lista__id = id)).delete()
+                    ListaXEmpresa.objects.filter(Q(lista__id = id)).delete()
+                    Lista.objects.filter(id=id).delete()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Sección Listas",
+                                    'descripcion': "Eliminación de lista: " + nombre,
+                                    'propietario': propietarioId,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Lista eliminada',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Listas",
+                                'codigo': "RLE001",
+                                'descripcion': "Error en eliminación de lista",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de lista',
+                                    },)
         return Response('Lista no encontrada',status=status.HTTP_200_OK)

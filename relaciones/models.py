@@ -18,8 +18,8 @@ class Empresa(models.Model):
     cantEmpleados = models.IntegerField(null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
     def __str__(self):
         return self.nombre
@@ -37,8 +37,9 @@ class Contacto(models.Model):
     calificado = models.BooleanField(default=False)
     estado = models.CharField(max_length=20, choices=estado_choices,null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaConversion = models.DateTimeField(blank=True,null =True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
     def __str__(self):
         return self.persona.nombreCompleto + "-" + self.estado
@@ -69,8 +70,8 @@ class Lista(models.Model):
     lista_x_contacto = models.ManyToManyField(Contacto, through='ListaXContacto')
     lista_x_empresa = models.ManyToManyField(Empresa, through='ListaXEmpresa')
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Actividad(models.Model):
     tipo_choices = [
@@ -88,8 +89,8 @@ class Actividad(models.Model):
     fechaHora = models.DateTimeField(blank=True, null=True)
     contacto = models.ForeignKey(Contacto, on_delete=models.CASCADE, null=True, blank=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Telefono(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -142,6 +143,8 @@ class CuentaRedSocial(models.Model):
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)
     contacto = models.ForeignKey(Contacto, on_delete=models.CASCADE, null=True, blank=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, null=True, blank=True)
+    tokenRedSocial = models.TextField(null=True, blank=True)
+    paginaIdRedSocial = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return self.redSocial + "-" + self.nombreUsuario

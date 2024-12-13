@@ -4,11 +4,13 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
+#from apscheduler.schedulers.background import BackgroundScheduler
 from marketing.models import *
 from marketing.serializers import *
 from relaciones.models import *
 from relaciones.serializers import *
+from sistema.serializers import LogSerializer
+from sistema.models import Log
 
 # Create your views here.
 
@@ -66,81 +68,122 @@ class FiltrarPlanes(APIView):
 
 class RegistrarPlan(APIView):
     def post(self, request,id=0):
-        if request.data["idPlan"] is not None and request.data["idPlan"]>0:
-            idPlan = request.data["idPlan"]
-            IndicadorAsignado.objects.filter(Q(plan__id = idPlan)).delete()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'plan': idPlan,
-                          'valor': indicador['valor']
-                          #podria incluirse el calculoautomatico
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try: 
+            if request.data["idPlan"] is not None and request.data["idPlan"]>0:
+                idPlan = request.data["idPlan"]
+                IndicadorAsignado.objects.filter(Q(plan__id = idPlan)).delete()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'plan': idPlan,
+                            'valor': indicador['valor']
+                            #podria incluirse el calculoautomatico
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                plan = Plan.objects.filter(id=idPlan).first()
+                estrategias = request.data["estrategias"]
+                for estrategia in estrategias:
+                    if(estrategia['tipo']=='Programa'):
+                        Estrategia.objects.filter(id=estrategia['id']).update(plan=plan)
+                    else:
+                        Campana.objects.filter(id=estrategia['id']).update(plan=plan)
+                campos_plan = {
+                    'descripcion': request.data["descripcion"],
+                    'sponsor': request.data["sponsor"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'fechaModificacion': fechaActual
+                }
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_plan['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_plan['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                plan_serializer = PlanSerializer(plan, data=campos_plan)
+                if plan_serializer.is_valid():
+                    plan_serializer.save()
+                campos_log = {'tipo': "0",
+                        'fuente': "Sección Planes",
+                        'descripcion': "Modificación de plan de marketing: " + request.data["descripcion"],
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-            plan = Plan.objects.filter(id=idPlan).first()
-            estrategias = request.data["estrategias"]
-            for estrategia in estrategias:
-                if(estrategia['tipo']=='Programa'):
-                    Estrategia.objects.filter(id=estrategia['id']).update(plan=plan)
-                else:
-                    Campana.objects.filter(id=estrategia['id']).update(plan=plan)
-            campos_plan = {
-                 'descripcion': request.data["descripcion"],
-                 'sponsor': request.data["sponsor"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_plan['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_plan['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            plan_serializer = PlanSerializer(plan, data=campos_plan)
-            if plan_serializer.is_valid():
-                plan_serializer.save()
-        else:
-            campos_plan = {
-                 'descripcion': request.data["descripcion"],
-                 'sponsor': request.data["sponsor"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_plan['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_plan['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            plan_serializer = PlanSerializer(data=campos_plan)
-            if plan_serializer.is_valid():
-                idPlan = plan_serializer.save()
-                idPlan = idPlan.id
-            plan = Plan.objects.filter(id=idPlan).first()
-            estrategias = request.data["estrategias"]
-            for estrategia in estrategias:
-                if(estrategia['tipo']=='Programa'):
-                    Estrategia.objects.filter(id=estrategia['id']).update(plan=plan)
-                else:
-                    Campana.objects.filter(id=estrategia['id']).update(plan=plan)
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'plan': idPlan,
-                          'valor': indicador['valor']
-                          #podria incluirse el calculoautomatico
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_plan = {
+                    'descripcion': request.data["descripcion"],
+                    'sponsor': request.data["sponsor"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                    'fechaModificacion': fechaActual
+                }
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_plan['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_plan['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                plan_serializer = PlanSerializer(data=campos_plan)
+                if plan_serializer.is_valid():
+                    idPlan = plan_serializer.save()
+                    idPlan = idPlan.id
+                plan = Plan.objects.filter(id=idPlan).first()
+                estrategias = request.data["estrategias"]
+                for estrategia in estrategias:
+                    if(estrategia['tipo']=='Programa'):
+                        Estrategia.objects.filter(id=estrategia['id']).update(plan=plan)
+                    else:
+                        Campana.objects.filter(id=estrategia['id']).update(plan=plan)
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'plan': idPlan,
+                            'valor': indicador['valor']
+                            #podria incluirse el calculoautomatico
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                    #guardar actividad registro con propietarioId
+                campos_log = {'tipo': "0",
+                        'fuente': "Sección Planes",
+                        'descripcion': "Creación de plan de marketing: " + request.data["descripcion"],
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Plan registrado correctamente',
-                        },)	
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Plan registrado correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Planes",
+                        'codigo': "MPR001",
+                        'descripcion': "Error en registro de plan de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de plan',
+                            },)	
 
 class BuscarDetallePlan(APIView):
     def get(self, request,id):
@@ -198,9 +241,40 @@ class BuscarDetallePlan(APIView):
 class EliminarPlan(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            IndicadorAsignado.objects.filter(Q(plan__id = id)).delete()
-            Plan.objects.filter(id = id).delete()
-            return Response('Plan eliminado',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            plan = Plan.objects.filter(id=id).values('descripcion','propietario__id').first()
+            if plan is not None:
+                propietarioId = plan['propietario__id']
+                descripcion = plan['descripcion']
+                try:
+                    IndicadorAsignado.objects.filter(Q(plan__id = id)).delete()
+                    Plan.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Planes",
+                                'descripcion': "Eliminación de plan de marketing: " + descripcion,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Plan eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Planes",
+                                'codigo': "MPE001",
+                                'descripcion': "Error en eliminación de plan de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de plan',
+                                    },)
         return Response('Plan no encontrado',status=status.HTTP_200_OK)
 
 class FiltrarEstrategias(APIView):
@@ -273,100 +347,140 @@ class FiltrarEstrategias(APIView):
 
 class RegistrarEstrategia(APIView):
     def post(self, request,id=0):
-        if request.data["idEstrategia"] is not None and request.data["idEstrategia"]>0:
-            idEstrategia = request.data["idEstrategia"]
-            IndicadorAsignado.objects.filter(Q(estrategia__id = idEstrategia)).delete()
-            #ContactoXEstrategia.objects.filter(Q(estrategia__id = idEstrategia)).delete()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'estrategia': idEstrategia
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idEstrategia"] is not None and request.data["idEstrategia"]>0:
+                idEstrategia = request.data["idEstrategia"]
+                IndicadorAsignado.objects.filter(Q(estrategia__id = idEstrategia)).delete()
+                #ContactoXEstrategia.objects.filter(Q(estrategia__id = idEstrategia)).delete()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'estrategia': idEstrategia
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                #contactos = request.data["contactos"]
+                #for contacto in contactos:
+                #    campos = {'contacto': contacto['id'],
+                #              'estrategia': idEstrategia,
+                #              'valor': indicador['valor']
+                #            }
+                    #contactoxestrategia_serializer = ContactoXEstrategiaSerializer(data = campos)
+                    #if contactoxestrategia_serializer.is_valid():
+                    #    contactoxestrategia_serializer.save()
+                estrategia = Estrategia.objects.filter(id=idEstrategia).first()
+                campanas = request.data["campanas"]
+                for campana in campanas:
+                    Campana.objects.filter(id=campana['id']).update(estrategia=estrategia)
+                campos_estrategia = {
+                    'descripcion': request.data["descripcion"],
+                    'tipo': '0',
+                    'sponsor': request.data["sponsor"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                if(request.data["idPlan"] != "" and request.data["idPlan"]>0):
+                    campos_estrategia['plan'] = request.data["idPlan"]
+                if(request.data["leads"] != "" and request.data["leads"]>0):
+                    campos_estrategia['leads'] = request.data["leads"]
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_estrategia['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_estrategia['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                estrategia_serializer = EstrategiaSerializer(estrategia, data=campos_estrategia)
+                if estrategia_serializer.is_valid():
+                    estrategia_serializer.save()
+                campos_log = {'tipo': "0",
+                        'fuente': "Sección Estrategias",
+                        'descripcion': "Modificación de programa de marketing: " + request.data["descripcion"],
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-            #contactos = request.data["contactos"]
-            #for contacto in contactos:
-            #    campos = {'contacto': contacto['id'],
-            #              'estrategia': idEstrategia,
-            #              'valor': indicador['valor']
-            #            }
-                #contactoxestrategia_serializer = ContactoXEstrategiaSerializer(data = campos)
-                #if contactoxestrategia_serializer.is_valid():
-                #    contactoxestrategia_serializer.save()
-            estrategia = Estrategia.objects.filter(id=idEstrategia).first()
-            campanas = request.data["campanas"]
-            for campana in campanas:
-                Campana.objects.filter(id=campana['id']).update(estrategia=estrategia)
-            campos_estrategia = {
-                 'descripcion': request.data["descripcion"],
-                 'tipo': '0',
-                 'sponsor': request.data["sponsor"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if(request.data["idPlan"] != "" and request.data["idPlan"]>0):
-                campos_estrategia['plan'] = request.data["idPlan"]
-            if(request.data["leads"] != "" and request.data["leads"]>0):
-                campos_estrategia['leads'] = request.data["leads"]
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_estrategia['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_estrategia['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            estrategia_serializer = EstrategiaSerializer(estrategia, data=campos_estrategia)
-            if estrategia_serializer.is_valid():
-                estrategia_serializer.save()
-        else:
-            campos_estrategia = {
-                 'descripcion': request.data["descripcion"],
-                 'tipo': '0',
-                 'sponsor': request.data["sponsor"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if(request.data["idPlan"] != "" and request.data["idPlan"]>0):
-                campos_estrategia['plan'] = request.data["idPlan"]
-            if(request.data["leads"] != "" and request.data["leads"]>0):
-                campos_estrategia['leads'] = request.data["leads"]
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_estrategia['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_estrategia['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            estrategia_serializer = EstrategiaSerializer(data=campos_estrategia)
-            if estrategia_serializer.is_valid():
-                idEstrategia = estrategia_serializer.save()
-                idEstrategia = idEstrategia.id
-            estrategia = Estrategia.objects.filter(id=idEstrategia).first()
-            campanas = request.data["campanas"]
-            for campana in campanas:
-                Campana.objects.filter(id=campana['id']).update(estrategia=estrategia)
-            #contactos = request.data["contactos"]
-            #for contacto in contactos:
-            #    campos = {'contacto': contacto['id'],
-            #              'estrategia': idEstrategia
-            #            }
-                #contactoxestrategia_serializer = ContactoXEstrategiaSerializer(data = campos)
-                #if contactoxestrategia_serializer.is_valid():
-                #    contactoxestrategia_serializer.save()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'estrategia': idEstrategia,
-                          'valor': indicador['valor']
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_estrategia = {
+                    'descripcion': request.data["descripcion"],
+                    'tipo': '0',
+                    'sponsor': request.data["sponsor"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                if(request.data["idPlan"] != "" and request.data["idPlan"]>0):
+                    campos_estrategia['plan'] = request.data["idPlan"]
+                if(request.data["leads"] != "" and request.data["leads"]>0):
+                    campos_estrategia['leads'] = request.data["leads"]
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_estrategia['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_estrategia['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                estrategia_serializer = EstrategiaSerializer(data=campos_estrategia)
+                if estrategia_serializer.is_valid():
+                    idEstrategia = estrategia_serializer.save()
+                    idEstrategia = idEstrategia.id
+                estrategia = Estrategia.objects.filter(id=idEstrategia).first()
+                campanas = request.data["campanas"]
+                for campana in campanas:
+                    Campana.objects.filter(id=campana['id']).update(estrategia=estrategia)
+                #contactos = request.data["contactos"]
+                #for contacto in contactos:
+                #    campos = {'contacto': contacto['id'],
+                #              'estrategia': idEstrategia
+                #            }
+                    #contactoxestrategia_serializer = ContactoXEstrategiaSerializer(data = campos)
+                    #if contactoxestrategia_serializer.is_valid():
+                    #    contactoxestrategia_serializer.save()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'estrategia': idEstrategia,
+                            'valor': indicador['valor']
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                campos_log = {'tipo': "0",
+                        'fuente': "Sección Estrategias",
+                        'descripcion': "Creación de programa de marketing: " + request.data["descripcion"],
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Estrategia registrada correctamente',
-                        },)	
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Estrategia registrada correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Estrategias",
+                        'codigo': "MER001",
+                        'descripcion': "Error en registro de programa de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de programa',
+                            },)		
 
 class BuscarDetalleEstrategia(APIView):
     def get(self, request,id):
@@ -503,9 +617,40 @@ class BuscarDetalleEstrategia(APIView):
 class EliminarEstrategia(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            IndicadorAsignado.objects.filter(Q(estrategia__id = id)).delete()
-            Estrategia.objects.filter(id = id).delete()
-            return Response('Estrategia eliminada',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            estrategia = Estrategia.objects.filter(id=id).values('descripcion','propietario__id').first()
+            if estrategia is not None:
+                propietarioId = estrategia['propietario__id']
+                descripcion = estrategia['descripcion']
+                try:
+                    IndicadorAsignado.objects.filter(Q(estrategia__id = id)).delete()
+                    Estrategia.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Estrategias",
+                                'descripcion': "Eliminación de programa de marketing: " + descripcion,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Estrategia eliminada',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Estrategias",
+                                'codigo': "MEE001",
+                                'descripcion': "Error en eliminación de programa de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de programa',
+                                    },)	
         return Response('Estrategia no encontrada',status=status.HTTP_200_OK)
 
 class FiltrarCampanas(APIView):
@@ -569,102 +714,142 @@ class FiltrarCampanas(APIView):
 
 class RegistrarCampana(APIView):
     def post(self, request,id=0):
-        if request.data["idCampana"] is not None and request.data["idCampana"]>0:
-            idCampana = request.data["idCampana"]
-            IndicadorAsignado.objects.filter(Q(campana__id = idCampana)).delete()
-            CampanaXContacto.objects.filter(Q(campana__id = idCampana)).delete()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'campana': idCampana,
-                          'valor': indicador['valor']
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idCampana"] is not None and request.data["idCampana"]>0:
+                idCampana = request.data["idCampana"]
+                IndicadorAsignado.objects.filter(Q(campana__id = idCampana)).delete()
+                CampanaXContacto.objects.filter(Q(campana__id = idCampana)).delete()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'campana': idCampana,
+                            'valor': indicador['valor']
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    campos = {'contacto': contacto['id'],
+                            'campana': idCampana
+                            }
+                    contactoxcampana_serializer = CampanaXContactoSerializer(data = campos)
+                    if contactoxcampana_serializer.is_valid():
+                        contactoxcampana_serializer.save()
+                campana = Campana.objects.filter(id=idCampana).first()
+                recursos = request.data["recursos"]
+                for recurso in recursos:
+                    Recurso.objects.filter(id=recurso['id']).update(campana=campana)
+                campos_campana = {
+                    'tipo': request.data["tipo"],
+                    'descripcion': request.data["descripcion"],
+                    'sponsor': request.data["sponsor"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                if(request.data["leads"] != "" and request.data["leads"]>0):
+                    campos_campana['leads'] = request.data["leads"]
+                if(request.data['idPlan']> 0 and request.data['idPlan'] != ""): campos_campana['plan'] = request.data['idPlan']
+                elif(request.data['idEstrategia']> 0 and request.data['idEstrategia'] != ""): campos_campana['estrategia'] = request.data['idEstrategia']
+                
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_campana['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_campana['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                campana_serializer = CampanaSerializer(campana, data=campos_campana)
+                if campana_serializer.is_valid():
+                    campana_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Tácticas",
+                            'descripcion': "Modificación de campaña de marketing: " + request.data["descripcion"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_campana = {
+                    'tipo': request.data["tipo"],
+                    'descripcion': request.data["descripcion"],
+                    'sponsor': request.data["sponsor"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                if(request.data["leads"] != "" and request.data["leads"]>0):
+                    campos_campana['leads'] = request.data["leads"]
+                if(request.data['idPlan']> 0 and request.data['idPlan'] != ""): campos_campana['plan'] = request.data['idPlan']
+                elif(request.data['idEstrategia']> 0 and request.data['idEstrategia'] != ""): campos_campana['estrategia'] = request.data['idEstrategia']
+                
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_campana['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_campana['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                campana_serializer = CampanaSerializer(data=campos_campana)
+                if campana_serializer.is_valid():
+                    idCampana = campana_serializer.save()
+                    idCampana = idCampana.id
+                campana = Campana.objects.filter(id=idCampana).first()
+                recursos = request.data["recursos"]
+                for recurso in recursos:
+                    Recurso.objects.filter(id=recurso['id']).update(campana=campana)
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    campos = {'contacto': contacto['id'],
+                            'campana': idCampana
+                            }
+                    contactoxcampana_serializer = CampanaXContactoSerializer(data = campos)
+                    if contactoxcampana_serializer.is_valid():
+                        contactoxcampana_serializer.save()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'campana': idCampana,
+                            'valor': indicador['valor']
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Tácticas",
+                            'descripcion': "Creación de campaña de marketing: " + request.data["descripcion"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Campaña registrada correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Tácticas",
+                        'codigo': "MCR001",
+                        'descripcion': "Error en registro de campaña de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                campos = {'contacto': contacto['id'],
-                          'campana': idCampana
-                        }
-                contactoxcampana_serializer = CampanaXContactoSerializer(data = campos)
-                if contactoxcampana_serializer.is_valid():
-                    contactoxcampana_serializer.save()
-            campana = Campana.objects.filter(id=idCampana).first()
-            recursos = request.data["recursos"]
-            for recurso in recursos:
-                Recurso.objects.filter(id=recurso['id']).update(campana=campana)
-            campos_campana = {
-                'tipo': request.data["tipo"],
-                 'descripcion': request.data["descripcion"],
-                 'sponsor': request.data["sponsor"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if(request.data["leads"] != "" and request.data["leads"]>0):
-                campos_campana['leads'] = request.data["leads"]
-            if(request.data['idPlan']> 0 and request.data['idPlan'] != ""): campos_campana['plan'] = request.data['idPlan']
-            elif(request.data['idEstrategia']> 0 and request.data['idEstrategia'] != ""): campos_campana['estrategia'] = request.data['idEstrategia']
-            
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_campana['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_campana['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            campana_serializer = CampanaSerializer(campana, data=campos_campana)
-            if campana_serializer.is_valid():
-                campana_serializer.save()
-        else:
-            campos_campana = {
-                'tipo': request.data["tipo"],
-                 'descripcion': request.data["descripcion"],
-                 'sponsor': request.data["sponsor"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            if(request.data["leads"] != "" and request.data["leads"]>0):
-                campos_campana['leads'] = request.data["leads"]
-            if(request.data['idPlan']> 0 and request.data['idPlan'] != ""): campos_campana['plan'] = request.data['idPlan']
-            elif(request.data['idEstrategia']> 0 and request.data['idEstrategia'] != ""): campos_campana['estrategia'] = request.data['idEstrategia']
-            
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_campana['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_campana['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            campana_serializer = CampanaSerializer(data=campos_campana)
-            if campana_serializer.is_valid():
-                idCampana = campana_serializer.save()
-                idCampana = idCampana.id
-            campana = Campana.objects.filter(id=idCampana).first()
-            recursos = request.data["recursos"]
-            for recurso in recursos:
-                Recurso.objects.filter(id=recurso['id']).update(campana=campana)
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                campos = {'contacto': contacto['id'],
-                          'campana': idCampana
-                        }
-                contactoxcampana_serializer = CampanaXContactoSerializer(data = campos)
-                if contactoxcampana_serializer.is_valid():
-                    contactoxcampana_serializer.save()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'campana': idCampana,
-                          'valor': indicador['valor']
-                        }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Campaña registrada correctamente',
-                        },)	
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de campaña',
+                            },)	
 
 class BuscarDetalleCampana(APIView):
     def get(self, request,id):
@@ -852,10 +1037,42 @@ class BuscarDetalleCampana(APIView):
 class EliminarCampana(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            IndicadorAsignado.objects.filter(Q(campana__id = id)).delete()
-            CampanaXContacto.objects.filter(Q(campana__id = id)).delete()
-            Campana.objects.filter(id = id).delete()
-            return Response('Campana eliminada',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            campana = Campana.objects.filter(id=id).values('descripcion','propietario__id').first()
+            if campana is not None:
+                propietarioId = campana['propietario__id']
+                descripcion = campana['descripcion']
+                try:
+                    IndicadorAsignado.objects.filter(Q(campana__id = id)).delete()
+                    CampanaXContacto.objects.filter(Q(campana__id = id)).delete()
+                    Campana.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Tácticas",
+                                'descripcion': "Eliminación de campaña de marketing: " + descripcion,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Campana eliminada',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Tácticas",
+                                'codigo': "MCE001",
+                                'descripcion': "Error en eliminación de campaña de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de campaña',
+                                    },)	
+            
         return Response('Campana no encontrada',status=status.HTTP_200_OK)
 
 class FiltrarRecursos(APIView):
@@ -921,163 +1138,208 @@ class FiltrarRecursos(APIView):
 
 class RegistrarRecurso(APIView):
     def post(self, request,id=0):
-        if request.data["idRecurso"] is not None and request.data["idRecurso"]>0:
-            idRecurso = request.data["idRecurso"]
-            IndicadorAsignado.objects.filter(Q(recurso__id = idRecurso)).delete()
-            RecursoXContacto.objects.filter(Q(recurso__id = idRecurso)).delete()
-            Imagen.objects.filter(Q(recurso__id = idRecurso)).delete()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'recurso': idRecurso,
-                          'valor': indicador['valor']
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idRecurso"] is not None and request.data["idRecurso"]>0:
+                idRecurso = request.data["idRecurso"]
+                IndicadorAsignado.objects.filter(Q(recurso__id = idRecurso)).delete()
+                RecursoXContacto.objects.filter(Q(recurso__id = idRecurso)).delete()
+                Imagen.objects.filter(Q(recurso__id = idRecurso)).delete()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'recurso': idRecurso,
+                            'valor': indicador['valor']
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    campos = {'contacto': contacto['id'],
+                            'recurso': idRecurso
+                            }
+                    contactoxestrategia_serializer = RecursoXContactoSerializer(data = campos)
+                    if contactoxestrategia_serializer.is_valid():
+                        contactoxestrategia_serializer.save()
+                recurso = Recurso.objects.filter(id=idRecurso).first()
+                campos_recurso = {
+                    'descripcion': request.data["descripcion"],
+                    'tipo': request.data["tipo"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'idUsuario': request.data["idUsuario"],
+                        'fechaModificacion': fechaActual
+                    #falta poner los datos dependiendo del tipo
+                }
+                if(request.data["tipo"]=="0"):
+                    campos_recurso['contenido'] = request.data["contenido"]
+                    campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
+                    campos_recurso['asuntoCorreo'] = request.data["asuntoCorreo"]
+                    campos_recurso['remitenteCorreo'] = request.data["remitenteCorreo"]
+                    campos_recurso['remitenteContrasena'] = request.data["remitenteContrasena"]
+                    if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
+                        fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
+                        hora = str(request.data["horaPublicacion"]).split(":")
+                        fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
+                        campos_recurso['fechaPublicacion'] = fechaHora
+                        print(fechaHora)
+                elif (request.data["tipo"]=="1"):
+                    campos_recurso['servicioRedSocial'] = request.data["servicioRedSocial"]
+                    campos_recurso['usuarioRedSocial'] = request.data["usuarioRedSocial"]
+                    campos_recurso['audienciaRedSocial'] = request.data["audienciaRedSocial"]
+                    campos_recurso['tokenRedSocial'] = request.data["tokenRedSocial"]
+                    campos_recurso['paginaIdRedSocial'] = request.data["paginaIdRedSocial"]
+                    campos_recurso['contenido'] = request.data["contenido"]
+                    if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
+                        fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
+                        hora = str(request.data["horaPublicacion"]).split(":")
+                        fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
+                        campos_recurso['fechaPublicacion'] = fechaHora
+                    for imagen in request.data["imagenes"]:
+                        campos_imagen = {
+                            'contenido': imagen['contenido'],
+                            'enlace': imagen['enlace'],
+                            'recurso': idRecurso
                         }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                campos = {'contacto': contacto['id'],
-                          'recurso': idRecurso
+                        imagen_serializer = ImagenSerializer(data = campos_imagen)
+                        if imagen_serializer.is_valid():
+                            imagen_serializer.save()
+                elif (request.data["tipo"]=="2"):
+                    campos_recurso['titulo'] = request.data["titulo"]
+                    campos_recurso['dominio'] = request.data["dominio"]
+                    campos_recurso['complementoDominio'] = request.data["complementoDominio"]
+                    campos_recurso['contenido'] = request.data["contenido"]
+                    campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
+                if(request.data['idCampana']> 0 and request.data['idCampana'] != ""): campos_recurso['campana'] = request.data['idCampana']
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_recurso['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_recurso['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                recurso_serializer = RecursoSerializer(recurso, data=campos_recurso)
+                if recurso_serializer.is_valid():
+                    recurso_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Tácticas",
+                            'descripcion': "Modificación de recurso de marketing: " + request.data["descripcion"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_recurso = {
+                    'descripcion': request.data["descripcion"],
+                    'tipo': request.data["tipo"],
+                    'presupuesto': request.data["presupuesto"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'idUsuario': request.data["idUsuario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                    #falta poner los datos dependiendo del tipo
+                }
+                if(request.data["tipo"]=="0"):
+                    campos_recurso['contenido'] = request.data["contenido"]
+                    campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
+                    campos_recurso['asuntoCorreo'] = request.data["asuntoCorreo"]
+                    campos_recurso['remitenteCorreo'] = request.data["remitenteCorreo"]
+                    campos_recurso['remitenteContrasena'] = request.data["remitenteContrasena"]
+                    if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
+                        fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
+                        hora = str(request.data["horaPublicacion"]).split(":")
+                        fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
+                        campos_recurso['fechaPublicacion'] = fechaHora
+                elif (request.data["tipo"]=="1"):
+                    campos_recurso['servicioRedSocial'] = request.data["servicioRedSocial"]
+                    campos_recurso['usuarioRedSocial'] = request.data["usuarioRedSocial"]
+                    campos_recurso['audienciaRedSocial'] = request.data["audienciaRedSocial"]
+                    campos_recurso['tokenRedSocial'] = request.data["tokenRedSocial"]
+                    campos_recurso['paginaIdRedSocial'] = request.data["paginaIdRedSocial"]
+                    campos_recurso['contenido'] = request.data["contenido"]
+                    if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
+                        fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
+                        hora = str(request.data["horaPublicacion"]).split(":")
+                        fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
+                        campos_recurso['fechaPublicacion'] = fechaHora
+                elif (request.data["tipo"]=="2"):
+                    campos_recurso['titulo'] = request.data["titulo"]
+                    campos_recurso['dominio'] = request.data["dominio"]
+                    campos_recurso['complementoDominio'] = request.data["complementoDominio"]
+                    campos_recurso['contenido'] = request.data["contenido"]
+                    campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
+                if(request.data['idCampana']> 0 and request.data['idCampana'] != ""): campos_recurso['campana'] = request.data['idCampana']
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_recurso['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_recurso['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                recurso_serializer = RecursoSerializer(data=campos_recurso)
+                if recurso_serializer.is_valid():
+                    idRecurso = recurso_serializer.save()
+                    idRecurso = idRecurso.id
+                if (request.data["tipo"]=="1"):
+                    for imagen in request.data["imagenes"]:
+                        campos_imagen = {
+                            'contenido': imagen['contenido'],
+                            'enlace': imagen['enlace'],
+                            'recurso': idRecurso
                         }
-                contactoxestrategia_serializer = RecursoXContactoSerializer(data = campos)
-                if contactoxestrategia_serializer.is_valid():
-                    contactoxestrategia_serializer.save()
-            recurso = Recurso.objects.filter(id=idRecurso).first()
-            campos_recurso = {
-                 'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"],
-                 'idUsuario': request.data["idUsuario"],
-                 #falta poner los datos dependiendo del tipo
-            }
-            if(request.data["tipo"]=="0"):
-                campos_recurso['contenido'] = request.data["contenido"]
-                campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
-                campos_recurso['asuntoCorreo'] = request.data["asuntoCorreo"]
-                campos_recurso['remitenteCorreo'] = request.data["remitenteCorreo"]
-                campos_recurso['remitenteContrasena'] = request.data["remitenteContrasena"]
-                if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
-                    fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
-                    hora = str(request.data["horaPublicacion"]).split(":")
-                    fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
-                    campos_recurso['fechaPublicacion'] = fechaHora
-            elif (request.data["tipo"]=="1"):
-                campos_recurso['servicioRedSocial'] = request.data["servicioRedSocial"]
-                campos_recurso['usuarioRedSocial'] = request.data["usuarioRedSocial"]
-                campos_recurso['audienciaRedSocial'] = request.data["audienciaRedSocial"]
-                campos_recurso['contenido'] = request.data["contenido"]
-                if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
-                    fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
-                    hora = str(request.data["horaPublicacion"]).split(":")
-                    fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
-                    campos_recurso['fechaPublicacion'] = fechaHora
-                for imagen in request.data["imagenes"]:
-                    campos_imagen = {
-                        'contenido': imagen['contenido'],
-                        'enlace': imagen['enlace'],
-                        'recurso': idRecurso
-                    }
-                    imagen_serializer = ImagenSerializer(data = campos_imagen)
-                    if imagen_serializer.is_valid():
-                        imagen_serializer.save()
-            elif (request.data["tipo"]=="2"):
-                campos_recurso['titulo'] = request.data["titulo"]
-                campos_recurso['dominio'] = request.data["dominio"]
-                campos_recurso['complementoDominio'] = request.data["complementoDominio"]
-                campos_recurso['contenido'] = request.data["contenido"]
-                campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
-            if(request.data['idCampana']> 0 and request.data['idCampana'] != ""): campos_recurso['campana'] = request.data['idCampana']
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_recurso['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_recurso['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            recurso_serializer = RecursoSerializer(recurso, data=campos_recurso)
-            if recurso_serializer.is_valid():
-                recurso_serializer.save()
-        else:
-            campos_recurso = {
-                 'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
-                 'presupuesto': request.data["presupuesto"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"],
-                 'idUsuario': request.data["idUsuario"],
-                 #falta poner los datos dependiendo del tipo
-            }
-            if(request.data["tipo"]=="0"):
-                campos_recurso['contenido'] = request.data["contenido"]
-                campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
-                campos_recurso['asuntoCorreo'] = request.data["asuntoCorreo"]
-                campos_recurso['remitenteCorreo'] = request.data["remitenteCorreo"]
-                campos_recurso['remitenteContrasena'] = request.data["remitenteContrasena"]
-                if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
-                    fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
-                    hora = str(request.data["horaPublicacion"]).split(":")
-                    fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
-                    campos_recurso['fechaPublicacion'] = fechaHora
-            elif (request.data["tipo"]=="1"):
-                campos_recurso['servicioRedSocial'] = request.data["servicioRedSocial"]
-                campos_recurso['usuarioRedSocial'] = request.data["usuarioRedSocial"]
-                campos_recurso['audienciaRedSocial'] = request.data["audienciaRedSocial"]
-                campos_recurso['contenido'] = request.data["contenido"]
-                if request.data["fechaPublicacion"] != "" and request.data["horaPublicacion"] != "" and request.data["fechaPublicacion"] is not None and request.data["horaPublicacion"] is not None:
-                    fecha  = datetime.datetime.strptime(request.data["fechaPublicacion"], '%d-%m-%Y').date()
-                    hora = str(request.data["horaPublicacion"]).split(":")
-                    fechaHora = datetime.datetime(fecha.year,fecha.month,fecha.day, int(hora[0]),int(hora[1]),0)
-                    campos_recurso['fechaPublicacion'] = fechaHora
-            elif (request.data["tipo"]=="2"):
-                campos_recurso['titulo'] = request.data["titulo"]
-                campos_recurso['dominio'] = request.data["dominio"]
-                campos_recurso['complementoDominio'] = request.data["complementoDominio"]
-                campos_recurso['contenido'] = request.data["contenido"]
-                campos_recurso['contenidoHTML']  = request.data["contenidoHTML"]
-            if(request.data['idCampana']> 0 and request.data['idCampana'] != ""): campos_recurso['campana'] = request.data['idCampana']
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_recurso['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_recurso['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            recurso_serializer = RecursoSerializer(data=campos_recurso)
-            if recurso_serializer.is_valid():
-                idRecurso = recurso_serializer.save()
-                idRecurso = idRecurso.id
-            if (request.data["tipo"]=="1"):
-                for imagen in request.data["imagenes"]:
-                    campos_imagen = {
-                        'contenido': imagen['contenido'],
-                        'enlace': imagen['enlace'],
-                        'recurso': idRecurso
-                    }
-                    imagen_serializer = ImagenSerializer(data = campos_imagen)
-                    if imagen_serializer.is_valid():
-                        imagen_serializer.save()
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                campos = {'contacto': contacto['id'],
-                          'recurso': idRecurso
+                        imagen_serializer = ImagenSerializer(data = campos_imagen)
+                        if imagen_serializer.is_valid():
+                            imagen_serializer.save()
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    campos = {'contacto': contacto['id'],
+                            'recurso': idRecurso
+                            }
+                    contactoxestrategia_serializer = RecursoXContactoSerializer(data = campos)
+                    if contactoxestrategia_serializer.is_valid():
+                        contactoxestrategia_serializer.save()
+                indicadores = request.data["indicadores"]
+                for indicador in indicadores:
+                    campos = {'indicador': indicador['id'],
+                            'recurso': idRecurso,
+                            'valor': indicador['valor']
+                            }
+                    indicador_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicador_serializer.is_valid():
+                        indicador_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Tácticas",
+                            'descripcion': "Creación de recurso de marketing: " + request.data["descripcion"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Recurso registrado correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Tácticas",
+                        'codigo': "MRR001",
+                        'descripcion': "Error en registro de recurso de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                contactoxestrategia_serializer = RecursoXContactoSerializer(data = campos)
-                if contactoxestrategia_serializer.is_valid():
-                    contactoxestrategia_serializer.save()
-            indicadores = request.data["indicadores"]
-            for indicador in indicadores:
-                campos = {'indicador': indicador['id'],
-                          'recurso': idRecurso,
-                          'valor': indicador['valor']
-                        }
-                indicador_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicador_serializer.is_valid():
-                    indicador_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Recurso registrado correctamente',
-                        },)	
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de recurso',
+                            },)	
 
 class BuscarDetalleRecurso(APIView):
     def get(self, request,id):
@@ -1121,7 +1383,10 @@ class BuscarDetalleRecurso(APIView):
                 if recurso['fechaPublicacion'] is not None:
                     fechapub = recurso['fechaPublicacion'].replace(tzinfo=None)
                     campos_recurso["fechaPublicacion"] = datetime.datetime.strftime(fechapub, '%m/%d/%Y')
-                    campos_recurso["horaPublicacion"] = str(fechapub.hour) + ":" + str(fechapub.minute)
+                    if (fechapub.hour>=10): campos_recurso["horaPublicacion"] = str(fechapub.hour)
+                    else: campos_recurso["horaPublicacion"] = "0" + str(fechapub.hour)
+                    if(fechapub.minute>=10): campos_recurso["horaPublicacion"] += ":" + str(fechapub.minute)
+                    else: campos_recurso["horaPublicacion"] += ":0" + str(fechapub.minute)
                 contactos = RecursoXContacto.objects.filter(recurso__id=recurso['id']).values('contacto__id','contacto__estado','contacto__persona__nombreCompleto', 'contacto__empresa__nombre')
                 campos_recurso['contactos'] = list(contactos)
                 ids_contactos = []
@@ -1189,11 +1454,42 @@ class BuscarDetalleRecurso(APIView):
 class EliminarRecurso(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            IndicadorAsignado.objects.filter(Q(recurso__id = id)).delete()
-            RecursoXContacto.objects.filter(Q(recurso__id = id)).delete()
-            Imagen.objects.filter(Q(recurso__id = id)).delete()
-            Recurso.objects.filter(id = id).delete()
-            return Response('Recurso eliminado',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            recurso = Recurso.objects.filter(id=id).values('descripcion','propietario__id').first()
+            if recurso is not None:
+                propietarioId = recurso['propietario__id']
+                descripcion = recurso['descripcion']
+                try:
+                    IndicadorAsignado.objects.filter(Q(recurso__id = id)).delete()
+                    RecursoXContacto.objects.filter(Q(recurso__id = id)).delete()
+                    Imagen.objects.filter(Q(recurso__id = id)).delete()
+                    Recurso.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Tácticas",
+                                'descripcion': "Eliminación de recurso de marketing: " + descripcion,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Recurso eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Tácticas",
+                                'codigo': "MRE001",
+                                'descripcion': "Error en eliminación de recurso de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de recurso',
+                                    },)	
         return Response('Recurso no encontrado',status=status.HTTP_200_OK)
 
 class FiltrarPropiedades(APIView):
@@ -1229,85 +1525,125 @@ class FiltrarVariables(APIView):
 
 class RegistrarIndicador(APIView):
     def post(self, request,id=0):
-        if request.data["idIndicador"] is not None and request.data["idIndicador"]>0:
-            idIndicador = request.data["idIndicador"]
-            VariableXIndicador.objects.filter(Q(indicador__id = idIndicador)).delete()
-            IndicadorAsignado.objects.filter(Q(indicador__id = idIndicador)).delete()
-            variables = request.data["variables"]
-            for variable in variables:
-                campos = {'variable': variable['id'],
-                          'indicador': idIndicador
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idIndicador"] is not None and request.data["idIndicador"]>0:
+                idIndicador = request.data["idIndicador"]
+                VariableXIndicador.objects.filter(Q(indicador__id = idIndicador)).delete()
+                IndicadorAsignado.objects.filter(Q(indicador__id = idIndicador)).delete()
+                variables = request.data["variables"]
+                for variable in variables:
+                    campos = {'variable': variable['id'],
+                            'indicador': idIndicador
+                            }
+                    variablexindicador_serializer = VariableXIndicadorSerializer(data = campos)
+                    if variablexindicador_serializer.is_valid():
+                        variablexindicador_serializer.save()
+                asociaciones = request.data["asociaciones"]
+                for asociacion in asociaciones:
+                    campos = {
+                            'indicador': idIndicador,
+                            'valor': asociacion['valor']
+                            }
+                    if request.data["tipo"] == "0": campos['plan'] = asociacion['id']
+                    elif request.data["tipo"] == "1": campos['estrategia'] = asociacion['id']
+                    elif request.data["tipo"] == "2" or request.data["tipo"] == "3": campos['campana'] = asociacion['id']
+                    elif request.data["tipo"] == "4" or request.data["tipo"] == "5" or request.data["tipo"] == "6": campos['recurso'] = asociacion['id']
+                    indicadorAsignado_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicadorAsignado_serializer.is_valid():
+                        indicadorAsignado_serializer.save()
+                indicador = Indicador.objects.filter(id=idIndicador).first()
+                campos_indicador = {
+                    'nombre': request.data['nombre'],
+                    'descripcion': request.data["descripcion"],
+                    'formula': request.data["formula"],
+                    'tipo': request.data["tipo"],
+                    'automatica': request.data["automatica"],
+                    'calculoAutomatico': request.data["calculoAutomatico"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                indicador_serializer = IndicadorSerializer(indicador, data=campos_indicador)
+                if indicador_serializer.is_valid():
+                    indicador_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Indicadores",
+                            'descripcion': "Modificación de indicador de marketing: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+                #falta guardar las asignaciones
+            else:
+                campos_indicador = {
+                    'nombre': request.data['nombre'],
+                    'descripcion': request.data["descripcion"],
+                    'formula': request.data["formula"],
+                    'tipo': request.data["tipo"],
+                    'automatica': request.data["automatica"],
+                    'calculoAutomatico': request.data["calculoAutomatico"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                indicador_serializer = IndicadorSerializer(data=campos_indicador)
+                if indicador_serializer.is_valid():
+                    idIndicador = indicador_serializer.save()
+                    idIndicador = idIndicador.id
+                asociaciones = request.data["asociaciones"]
+                for asociacion in asociaciones:
+                    campos = {
+                            'indicador': idIndicador,
+                            'valor': asociacion['valor']
+                            }
+                    if request.data["tipo"] == "0": campos['plan'] = asociacion['id']
+                    elif request.data["tipo"] == "1": campos['estrategia'] = asociacion['id']
+                    elif request.data["tipo"] == "2" or request.data["tipo"] == "3": campos['campana'] = asociacion['id']
+                    elif request.data["tipo"] == "4" or request.data["tipo"] == "5" or request.data["tipo"] == "6": campos['recurso'] = asociacion['id']
+                    indicadorAsignado_serializer = IndicadorAsignadoSerializer(data = campos)
+                    if indicadorAsignado_serializer.is_valid():
+                        indicadorAsignado_serializer.save()
+                variables = request.data["variables"]
+                for variable in variables:
+                    campos = {'variable': variable['id'],
+                            'indicador': idIndicador
+                            }
+                    variablexindicador_serializer = VariableXIndicadorSerializer(data = campos)
+                    if variablexindicador_serializer.is_valid():
+                        variablexindicador_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Recursos",
+                            'descripcion': "Creación de indicador de marketing: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+                #falta guardar las asignaciones
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Indicador registrado correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Indicadores",
+                        'codigo': "MIR001",
+                        'descripcion': "Error en registro de indicador de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                variablexindicador_serializer = VariableXIndicadorSerializer(data = campos)
-                if variablexindicador_serializer.is_valid():
-                    variablexindicador_serializer.save()
-            asociaciones = request.data["asociaciones"]
-            for asociacion in asociaciones:
-                campos = {
-                          'indicador': idIndicador,
-                          'valor': asociacion['valor']
-                        }
-                if request.data["tipo"] == "0": campos['plan'] = asociacion['id']
-                elif request.data["tipo"] == "1": campos['estrategia'] = asociacion['id']
-                elif request.data["tipo"] == "2" or request.data["tipo"] == "3": campos['campana'] = asociacion['id']
-                elif request.data["tipo"] == "4" or request.data["tipo"] == "5" or request.data["tipo"] == "6": campos['recurso'] = asociacion['id']
-                indicadorAsignado_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicadorAsignado_serializer.is_valid():
-                    indicadorAsignado_serializer.save()
-            indicador = Indicador.objects.filter(id=idIndicador).first()
-            campos_indicador = {
-                'nombre': request.data['nombre'],
-                 'descripcion': request.data["descripcion"],
-                 'formula': request.data["formula"],
-                 'tipo': request.data["tipo"],
-                 'automatica': request.data["automatica"],
-                 'calculoAutomatico': request.data["calculoAutomatico"],
-                 'propietario': request.data["propietario"]
-            }
-            indicador_serializer = IndicadorSerializer(indicador, data=campos_indicador)
-            if indicador_serializer.is_valid():
-                indicador_serializer.save()
-            #falta guardar las asignaciones
-        else:
-            campos_indicador = {
-                'nombre': request.data['nombre'],
-                 'descripcion': request.data["descripcion"],
-                 'formula': request.data["formula"],
-                 'tipo': request.data["tipo"],
-                 'automatica': request.data["automatica"],
-                 'calculoAutomatico': request.data["calculoAutomatico"],
-                 'propietario': request.data["propietario"]
-            }
-            indicador_serializer = IndicadorSerializer(data=campos_indicador)
-            if indicador_serializer.is_valid():
-                idIndicador = indicador_serializer.save()
-                idIndicador = idIndicador.id
-            asociaciones = request.data["asociaciones"]
-            for asociacion in asociaciones:
-                campos = {
-                          'indicador': idIndicador,
-                          'valor': asociacion['valor']
-                        }
-                if request.data["tipo"] == "0": campos['plan'] = asociacion['id']
-                elif request.data["tipo"] == "1": campos['estrategia'] = asociacion['id']
-                elif request.data["tipo"] == "2" or request.data["tipo"] == "3": campos['campana'] = asociacion['id']
-                elif request.data["tipo"] == "4" or request.data["tipo"] == "5" or request.data["tipo"] == "6": campos['recurso'] = asociacion['id']
-                indicadorAsignado_serializer = IndicadorAsignadoSerializer(data = campos)
-                if indicadorAsignado_serializer.is_valid():
-                    indicadorAsignado_serializer.save()
-            variables = request.data["variables"]
-            for variable in variables:
-                campos = {'variable': variable['id'],
-                          'indicador': idIndicador
-                        }
-                variablexindicador_serializer = VariableXIndicadorSerializer(data = campos)
-                if variablexindicador_serializer.is_valid():
-                    variablexindicador_serializer.save()
-            #falta guardar las asignaciones
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Indicador registrado correctamente',
-                        },)	
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de indicador',
+                            },)	
 
 class FiltrarIndicadores(APIView):
     def post(self, request,id=0):
@@ -1441,10 +1777,41 @@ class BuscarDetalleIndicador(APIView):
 class EliminarIndicador(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            IndicadorAsignado.objects.filter(Q(indicador__id = id)).delete()
-            VariableXIndicador.objects.filter(Q(indicador__id = id)).delete()
-            Indicador.objects.filter(id = id).delete()
-            return Response('Indicador eliminado',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            indicador = Indicador.objects.filter(id=id).values('nombre','propietario__id').first()
+            if indicador is not None:
+                propietarioId = indicador['propietario__id']
+                nombre = indicador['nombre']
+                try:
+                    IndicadorAsignado.objects.filter(Q(indicador__id = id)).delete()
+                    VariableXIndicador.objects.filter(Q(indicador__id = id)).delete()
+                    Indicador.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Indicadores",
+                                'descripcion': "Eliminación de indicador de marketing: " + nombre,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Indicador eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Indicadores",
+                                'codigo': "MIE001",
+                                'descripcion': "Error en eliminación de indicador de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de indicador',
+                                    },)	
         return Response('Indicador no encontrado',status=status.HTTP_200_OK)
 
 class FiltrarOportunidades(APIView):
@@ -1508,73 +1875,113 @@ class FiltrarOportunidades(APIView):
     
 class RegistrarOportunidad(APIView):
     def post(self, request,id=0):
-        if request.data["idOportunidad"] is not None and request.data["idOportunidad"]>0:
-            idOportunidad = request.data["idOportunidad"]
-            OportunidadXContacto.objects.filter(Q(oportunidad__id = idOportunidad)).delete()
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                campos = {'contacto': contacto['id'],
-                          'oportunidad': idOportunidad
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idOportunidad"] is not None and request.data["idOportunidad"]>0:
+                idOportunidad = request.data["idOportunidad"]
+                OportunidadXContacto.objects.filter(Q(oportunidad__id = idOportunidad)).delete()
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    campos = {'contacto': contacto['id'],
+                            'oportunidad': idOportunidad
+                            }
+                    contactoxoportunidad_serializer = OportunidadXContactoSerializer(data = campos)
+                    if contactoxoportunidad_serializer.is_valid():
+                        contactoxoportunidad_serializer.save()
+                oportunidad = Oportunidad.objects.filter(id=idOportunidad).first()
+                campos_oportunidad = {
+                    'descripcion': request.data["descripcion"],
+                    'tipo': request.data["tipo"],
+                    'etapa': request.data["etapa"],
+                    'importe': request.data["importe"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                if(request.data["idCampana"] != "" and request.data["idCampana"]>0):
+                    campos_oportunidad['campana'] = request.data["idCampana"]
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_oportunidad['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_oportunidad['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                oportunidad_serializer = OportunidadSerializer(oportunidad, data=campos_oportunidad)
+                if oportunidad_serializer.is_valid():
+                    oportunidad_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Oportunidades",
+                            'descripcion': "Modificación de oportunidad de marketing: " + request.data["descripcion"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_oportunidad = {
+                    'descripcion': request.data["descripcion"],
+                    'tipo': request.data["tipo"],
+                    'etapa': request.data["etapa"],
+                    'importe': request.data["importe"],
+                    'estado': request.data["estado"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                print(campos_oportunidad)
+                if(request.data["idCampana"] != "" and request.data["idCampana"] >0):
+                    campos_oportunidad['campana'] = request.data["idCampana"]
+                if(request.data["inicioVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
+                    campos_oportunidad['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
+                if(request.data["finVigencia"] != ""):
+                    fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
+                    campos_oportunidad['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
+                oportunidad_serializer = OportunidadSerializer(data=campos_oportunidad)
+                print(campos_oportunidad)
+                if oportunidad_serializer.is_valid():
+                    print("fue valido")
+                    idOportunidad = oportunidad_serializer.save()
+                    idOportunidad = idOportunidad.id
+                contactos = request.data["contactos"]
+                for contacto in contactos:
+                    campos = {'contacto': contacto['id'],
+                            'oportunidad': idOportunidad
+                            }
+                    contactoxoportunidad_serializer = OportunidadXContactoSerializer(data = campos)
+                    if contactoxoportunidad_serializer.is_valid():
+                        contactoxoportunidad_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Oportunidades",
+                            'descripcion': "Creación de oportunidad de marketing: " + request.data["descripcion"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Oportunidad registrada correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Oportunidades",
+                        'codigo': "MOR001",
+                        'descripcion': "Error en registro de oportunidad de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                contactoxoportunidad_serializer = OportunidadXContactoSerializer(data = campos)
-                if contactoxoportunidad_serializer.is_valid():
-                    contactoxoportunidad_serializer.save()
-            oportunidad = Oportunidad.objects.filter(id=idOportunidad).first()
-            campos_oportunidad = {
-                 'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
-                 'etapa': request.data["etapa"],
-                 'importe': request.data["importe"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"],
-            }
-            if(request.data["idCampana"] != "" and request.data["idCampana"]>0):
-                campos_oportunidad['campana'] = request.data["idCampana"]
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_oportunidad['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_oportunidad['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            oportunidad_serializer = OportunidadSerializer(oportunidad, data=campos_oportunidad)
-            if oportunidad_serializer.is_valid():
-                oportunidad_serializer.save()
-        else:
-            campos_oportunidad = {
-                 'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
-                 'etapa': request.data["etapa"],
-                 'importe': request.data["importe"],
-                 'estado': request.data["estado"],
-                 'propietario': request.data["propietario"]
-            }
-            print(campos_oportunidad)
-            if(request.data["idCampana"] != "" and request.data["idCampana"] >0):
-                campos_oportunidad['campana'] = request.data["idCampana"]
-            if(request.data["inicioVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["inicioVigencia"], '%d-%m-%Y').date()
-                campos_oportunidad['inicioVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 0,0,0)
-            if(request.data["finVigencia"] != ""):
-                fecha  = datetime.datetime.strptime(request.data["finVigencia"], '%d-%m-%Y').date()
-                campos_oportunidad['finVigencia'] = datetime.datetime(fecha.year,fecha.month,fecha.day, 23,59,59)
-            oportunidad_serializer = OportunidadSerializer(data=campos_oportunidad)
-            print(campos_oportunidad)
-            if oportunidad_serializer.is_valid():
-                print("fue valido")
-                idOportunidad = oportunidad_serializer.save()
-                idOportunidad = idOportunidad.id
-            contactos = request.data["contactos"]
-            for contacto in contactos:
-                campos = {'contacto': contacto['id'],
-                          'oportunidad': idOportunidad
-                        }
-                contactoxoportunidad_serializer = OportunidadXContactoSerializer(data = campos)
-                if contactoxoportunidad_serializer.is_valid():
-                    contactoxoportunidad_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Oportunidad registrada correctamente',
-                        },)	
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de oportunidad',
+                            },)		
 
 class BuscarDetalleOportunidad(APIView):
     def get(self, request,id):
@@ -1647,9 +2054,40 @@ class BuscarDetalleOportunidad(APIView):
 class EliminarOportunidad(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            OportunidadXContacto.objects.filter(Q(oportunidad__id = id)).delete()
-            Oportunidad.objects.filter(id = id).delete()
-            return Response('Oportunidad eliminada',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            oportunidad = Oportunidad.objects.filter(id=id).values('descripcion','propietario__id').first()
+            if oportunidad is not None:
+                propietarioId = oportunidad['propietario__id']
+                descripcion = oportunidad['descripcion']
+                try:
+                    OportunidadXContacto.objects.filter(Q(oportunidad__id = id)).delete()
+                    Oportunidad.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Oportunidades",
+                                'descripcion': "Eliminación de oportunidad de marketing: " + descripcion,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Oportunidad eliminada',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Oportunidades",
+                                'codigo': "MOE001",
+                                'descripcion': "Error en eliminación de oportunidad de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de oportunidad',
+                                    },)	
         return Response('Oportunidad no encontrada',status=status.HTTP_200_OK)
 
 class FiltrarReportes(APIView):
@@ -1692,11 +2130,42 @@ class FiltrarReportes(APIView):
 class EliminarReporte(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            Filtro.objects.filter(Q(reporte__id = id)).delete()
-            Columna.objects.filter(Q(reporte__id = id)).delete()
-            Fila.objects.filter(Q(reporte__id = id)).delete()
-            Reporte.objects.filter(id=id).delete()
-            return Response('Reporte eliminado',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            reporte = Reporte.objects.filter(id=id).values('nombre','propietario__id').first()
+            if reporte is not None:
+                propietarioId = reporte['propietario__id']
+                nombre = reporte['nombre']
+                try:
+                    Filtro.objects.filter(Q(reporte__id = id)).delete()
+                    Columna.objects.filter(Q(reporte__id = id)).delete()
+                    Fila.objects.filter(Q(reporte__id = id)).delete()
+                    Reporte.objects.filter(id=id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Informes y Reportes",
+                                'descripcion': "Eliminación de reporte de marketing: " + nombre,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Reporte eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Informes y Reportes",
+                                'codigo': "IRE001",
+                                'descripcion': "Error en eliminación de reporte de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de reporte',
+                                    },)	
         return Response('Reporte no encontrado',status=status.HTTP_200_OK)
 
 class AplicarFiltrosReporte(APIView):
@@ -2161,10 +2630,10 @@ class AplicarFiltrosReporte(APIView):
                 columnas = ['empresa-nombre','empresa-sector','empresa-tipo' , 'empresa-fechaCreacion', 'empresa-fechaModificacion']
                 for elemento in elementos:
                     tipo = ""
-                    if elemento['tipo'] == "0": tipo = "Suscriptor"
-                    elif elemento['tipo'] == "1": tipo = "Lead"
-                    elif elemento['tipo'] == "2": tipo = "Oportunidad"
-                    elif elemento['tipo'] == "3": tipo = "Cliente"
+                    if elemento['tipo'] == "0": tipo = "Cliente potencial"
+                    elif elemento['tipo'] == "1": tipo = "Socio"
+                    elif elemento['tipo'] == "2": tipo = "Revendedor"
+                    elif elemento['tipo'] == "3": tipo = "Proveedor"
                     fila = [['empresa-nombre', elemento['nombre']], 
                             ['empresa-sector', elemento['sector']],
                             ['empresa-tipo', tipo],
@@ -2175,220 +2644,261 @@ class AplicarFiltrosReporte(APIView):
 
 class RegistrarReporte(APIView):
     def post(self, request,id=0):
-        if request.data["idReporte"] is not None and request.data["idReporte"]>0:
-            idReporte = request.data["idReporte"]
-            Columna.objects.filter(Q(reporte__id = idReporte)).delete()
-            Fila.objects.filter(Q(reporte__id = idReporte)).delete()
-            Filtro.objects.filter(Q(reporte__id = id)).delete()
-            columnas = request.data["columnas"]
-            filas = request.data['filas']
-            filtros = request.data['filtros']
-            for filtro in filtros:
-                campos = {'reporte': idReporte,
-                          'propiedad': filtro['propiedad'], #cambiar esta parte
-                          'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': str(filtro['valorEvaluacion']) ,
-                          'nombre': filtro['nombre']
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idReporte"] is not None and request.data["idReporte"]>0:
+                idReporte = request.data["idReporte"]
+                Columna.objects.filter(Q(reporte__id = idReporte)).delete()
+                Fila.objects.filter(Q(reporte__id = idReporte)).delete()
+                Filtro.objects.filter(Q(reporte__id = id)).delete()
+                columnas = request.data["columnas"]
+                filas = request.data['filas']
+                filtros = request.data['filtros']
+                for filtro in filtros:
+                    campos = {'reporte': idReporte,
+                            'propiedad': filtro['propiedad'], #cambiar esta parte
+                            'evaluacion': filtro['evaluacion'],
+                            'valorEvaluacion': str(filtro['valorEvaluacion']) ,
+                            'nombre': filtro['nombre']
+                            }
+                    filtro_serializer = FiltroSerializer(data = campos)
+                    if filtro_serializer.is_valid():
+                        filtro_serializer.save()
+                for columna in columnas:
+                    campos_columna = {
+                    'nombre': columna,
+                    'reporte': idReporte
+                    }
+                    columna_serializer = ColumnaSerializer(data=campos_columna)
+                    if columna_serializer.is_valid():
+                        columna_serializer.save()
+                for fila in filas:
+                    contenido = ""
+                    for dato in fila:
+                        contenido = contenido + dato[0] + ":"
+                        if dato[0] == "plan-estado" or dato[0] == "programa-estado" or dato[0] == "campana-estado" or dato[0] == "recurso-estado"  or dato[0] == "oportunidad-estado":
+                            if dato[1] == "No vigente":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Vigente":
+                                contenido = contenido + "1" + ";"
+                        elif dato[0] == "programa-tipo":
+                            if dato[1] == "Programa":
+                                contenido = contenido + "0" + ";"
+                            else:
+                                contenido = contenido + "1" + ";" 
+                        elif dato[0] == "campana-tipo":
+                            if dato[1] == "Campaña de programa" or dato[1] == "Campana de programa":
+                                contenido = contenido + "0" + ";"
+                            else:
+                                contenido = contenido + "1" + ";"
+                        elif dato[0] == "recurso-tipo":
+                            if dato[1] == "Correo":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Publicación" or dato[1] == "Publicacion":
+                                contenido = contenido + "1" + ";" 
+                            elif dato[1] == "Página web" or dato[1] == "Pagina web":
+                                contenido = contenido + "2" + ";"
+                        elif dato[0] == "oportunidad-tipo":
+                            if dato[1] == "Negocio existente":
+                                contenido = contenido + "0" + ";"
+                            else:
+                                contenido = contenido + "1" + ";"
+                        elif dato[0] == "oportunidad-etapa":
+                            if dato[1] == "Calificación" or dato[1] == "Calificacion":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Necesidad de análisis" or dato[1] == "Necesidad de analisis":
+                                contenido = contenido + "1" + ";"
+                            elif dato[1] == "Propuesta":
+                                contenido = contenido + "2" + ";"
+                            elif dato[1] == "Negociación" or dato[1] == "Negociacion":
+                                contenido = contenido + "3" + ";"
+                            elif dato[1] == "Perdida":
+                                contenido = contenido + "4" + ";"
+                            elif dato[1] == "Ganada":
+                                contenido = contenido + "5" + ";"
+                        elif dato[0] == "contacto-estado":
+                            if dato[1] == "Suscriptor":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Lead":
+                                contenido = contenido + "1" + ";" 
+                            elif dato[1] == "Oportunidad":
+                                contenido = contenido + "2" + ";"
+                            elif dato[1] == "Cliente":
+                                contenido = contenido + "3" + ";"
+                        elif dato[0] == "empresa-tipo":
+                            if dato[1] == "Cliente potencial":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Socio":
+                                contenido = contenido + "1" + ";" 
+                            elif dato[1] == "Revendedor":
+                                contenido = contenido + "2" + ";"
+                            elif dato[1] == "Proveedor":
+                                contenido = contenido + "3" + ";"
+                        else:
+                            if dato[1] is not None: contenido = contenido + dato[1] + ";"
+                            else: contenido = contenido + " " + ";"
+                    campos_fila = {
+                    'contenido': contenido,
+                    'reporte': idReporte
+                    }
+                    fila_serializer = FilaSerializer(data=campos_fila)
+                    if fila_serializer.is_valid():
+                        fila_serializer.save()
+                reporte = Reporte.objects.filter(id=idReporte).first()
+                campos_reporte = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'tipo': request.data["tipo"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                reporte_serializer = ReporteSerializer(reporte, data=campos_reporte)
+                if reporte_serializer.is_valid():
+                    reporte_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Informes y Reportes",
+                            'descripcion': "Modificación de reporte de marketing: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_reporte = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'tipo': request.data["tipo"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                reporte_serializer = ReporteSerializer(data=campos_reporte)
+                if reporte_serializer.is_valid():
+                    idReporte = reporte_serializer.save()
+                    idReporte = idReporte.id
+                columnas = request.data["columnas"]
+                filas = request.data['filas']
+                filtros = request.data['filtros']
+                for filtro in filtros:
+                    campos = {'reporte': idReporte,
+                            'propiedad': filtro['propiedad'], #cambiar esta parte
+                            'evaluacion': filtro['evaluacion'],
+                            'valorEvaluacion': str(filtro['valorEvaluacion']) ,
+                            'nombre': filtro['nombre']
+                            }
+                    filtro_serializer = FiltroSerializer(data = campos)
+                    if filtro_serializer.is_valid():
+                        filtro_serializer.save()
+                for columna in columnas:
+                    campos_columna = {
+                    'nombre': columna,
+                    'reporte': idReporte
+                    }
+                    columna_serializer = ColumnaSerializer(data=campos_columna)
+                    if columna_serializer.is_valid():
+                        columna_serializer.save()
+                for fila in filas:
+                    contenido = ""
+                    for dato in fila:
+                        contenido = contenido + dato[0] + ":"
+                        if dato[0] == "plan-estado" or dato[0] == "programa-estado" or dato[0] == "campana-estado" or dato[0] == "recurso-estado"  or dato[0] == "oportunidad-estado":
+                            if dato[1] == "No vigente":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Vigente":
+                                contenido = contenido + "1" + ";"
+                        elif dato[0] == "programa-tipo":
+                            if dato[1] == "Programa":
+                                contenido = contenido + "0" + ";"
+                            else:
+                                contenido = contenido + "1" + ";" 
+                        elif dato[0] == "campana-tipo":
+                            if dato[1] == "Campaña de programa" or dato[1] == "Campana de programa":
+                                contenido = contenido + "0" + ";"
+                            else:
+                                contenido = contenido + "1" + ";"
+                        elif dato[0] == "recurso-tipo":
+                            if dato[1] == "Correo":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Publicación" or dato[1] == "Publicacion":
+                                contenido = contenido + "1" + ";" 
+                            elif dato[1] == "Página web" or dato[1] == "Pagina web":
+                                contenido = contenido + "2" + ";"
+                        elif dato[0] == "oportunidad-tipo":
+                            if dato[1] == "Negocio existente":
+                                contenido = contenido + "0" + ";"
+                            else:
+                                contenido = contenido + "1" + ";"
+                        elif dato[0] == "oportunidad-etapa":
+                            if dato[1] == "Calificación" or dato[1] == "Calificacion":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Necesidad de análisis" or dato[1] == "Necesidad de analisis":
+                                contenido = contenido + "1" + ";"
+                            elif dato[1] == "Propuesta":
+                                contenido = contenido + "2" + ";"
+                            elif dato[1] == "Negociación" or dato[1] == "Negociacion":
+                                contenido = contenido + "3" + ";"
+                            elif dato[1] == "Perdida":
+                                contenido = contenido + "4" + ";"
+                            elif dato[1] == "Ganada":
+                                contenido = contenido + "5" + ";"
+                        elif dato[0] == "contacto-estado":
+                            if dato[1] == "Suscriptor":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Lead":
+                                contenido = contenido + "1" + ";" 
+                            elif dato[1] == "Oportunidad":
+                                contenido = contenido + "2" + ";"
+                            elif dato[1] == "Cliente":
+                                contenido = contenido + "3" + ";"
+                        elif dato[0] == "empresa-tipo":
+                            if dato[1] == "Cliente potencial":
+                                contenido = contenido + "0" + ";"
+                            elif dato[1] == "Socio":
+                                contenido = contenido + "1" + ";" 
+                            elif dato[1] == "Revendedor":
+                                contenido = contenido + "2" + ";"
+                            elif dato[1] == "Proveedor":
+                                contenido = contenido + "3" + ";"
+                        else:
+                            contenido = contenido + dato[1] + ";"
+                    campos_fila = {
+                    'contenido': contenido,
+                    'reporte': idReporte
+                    }
+                    fila_serializer = FilaSerializer(data=campos_fila)
+                    if fila_serializer.is_valid():
+                        fila_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Informes y Reportes",
+                            'descripcion': "Creación de reporte de marketing: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Reporte registrado correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Informes y Reportes",
+                        'codigo': "IRR001",
+                        'descripcion': "Error en registro de reporte de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
                         }
-                filtro_serializer = FiltroSerializer(data = campos)
-                if filtro_serializer.is_valid():
-                    filtro_serializer.save()
-            for columna in columnas:
-                campos_columna = {
-                 'nombre': columna,
-                 'reporte': idReporte
-                }
-                columna_serializer = ColumnaSerializer(data=campos_columna)
-                if columna_serializer.is_valid():
-                    columna_serializer.save()
-            for fila in filas:
-                contenido = ""
-                for dato in fila:
-                    contenido = contenido + dato[0] + ":"
-                    if dato[0] == "plan-estado" or dato[0] == "programa-estado" or dato[0] == "campana-estado" or dato[0] == "recurso-estado"  or dato[0] == "oportunidad-estado":
-                        if dato[1] == "No vigente":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Vigente":
-                            contenido = contenido + "1" + ";"
-                    elif dato[0] == "programa-tipo":
-                        if dato[1] == "Programa":
-                            contenido = contenido + "0" + ";"
-                        else:
-                            contenido = contenido + "1" + ";" 
-                    elif dato[0] == "campana-tipo":
-                        if dato[1] == "Campaña de programa" or dato[1] == "Campana de programa":
-                            contenido = contenido + "0" + ";"
-                        else:
-                            contenido = contenido + "1" + ";"
-                    elif dato[0] == "recurso-tipo":
-                        if dato[1] == "Correo":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Publicación" or dato[1] == "Publicacion":
-                            contenido = contenido + "1" + ";" 
-                        elif dato[1] == "Página web" or dato[1] == "Pagina web":
-                            contenido = contenido + "2" + ";"
-                    elif dato[0] == "oportunidad-tipo":
-                        if dato[1] == "Negocio existente":
-                            contenido = contenido + "0" + ";"
-                        else:
-                            contenido = contenido + "1" + ";"
-                    elif dato[0] == "oportunidad-etapa":
-                        if dato[1] == "Calificación" or dato[1] == "Calificacion":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Necesidad de análisis" or dato[1] == "Necesidad de analisis":
-                            contenido = contenido + "1" + ";"
-                        elif dato[1] == "Propuesta":
-                            contenido = contenido + "2" + ";"
-                        elif dato[1] == "Negociación" or dato[1] == "Negociacion":
-                            contenido = contenido + "3" + ";"
-                        elif dato[1] == "Perdida":
-                            contenido = contenido + "4" + ";"
-                        elif dato[1] == "Ganada":
-                            contenido = contenido + "5" + ";"
-                    elif dato[0] == "contacto-estado":
-                        if dato[1] == "Suscriptor":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Lead":
-                            contenido = contenido + "1" + ";" 
-                        elif dato[1] == "Oportunidad":
-                            contenido = contenido + "2" + ";"
-                        elif dato[1] == "Cliente":
-                            contenido = contenido + "3" + ";"
-                    elif dato[0] == "empresa-tipo":
-                        if dato[1] == "Cliente potencial":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Socio":
-                            contenido = contenido + "1" + ";" 
-                        elif dato[1] == "Revendedor":
-                            contenido = contenido + "2" + ";"
-                        elif dato[1] == "Proveedor":
-                            contenido = contenido + "3" + ";"
-                    else:
-                        contenido = contenido + dato[1] + ";"
-                campos_fila = {
-                 'contenido': contenido,
-                 'reporte': idReporte
-                }
-                fila_serializer = FilaSerializer(data=campos_fila)
-                if fila_serializer.is_valid():
-                    fila_serializer.save()
-            reporte = Reporte.objects.filter(id=idReporte).first()
-            campos_reporte = {
-                'nombre': request.data["nombre"],
-                 'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
-                 'propietario': request.data["propietario"]
-            }
-            reporte_serializer = ReporteSerializer(reporte, data=campos_reporte)
-            if reporte_serializer.is_valid():
-                reporte_serializer.save()
-        else:
-            campos_reporte = {
-                'nombre': request.data["nombre"],
-                 'descripcion': request.data["descripcion"],
-                 'tipo': request.data["tipo"],
-                 'propietario': request.data["propietario"]
-            }
-            reporte_serializer = ReporteSerializer(data=campos_reporte)
-            if reporte_serializer.is_valid():
-                idReporte = reporte_serializer.save()
-                idReporte = idReporte.id
-            columnas = request.data["columnas"]
-            filas = request.data['filas']
-            filtros = request.data['filtros']
-            for filtro in filtros:
-                campos = {'reporte': idReporte,
-                          'propiedad': filtro['propiedad'], #cambiar esta parte
-                          'evaluacion': filtro['evaluacion'],
-                          'valorEvaluacion': str(filtro['valorEvaluacion']) ,
-                          'nombre': filtro['nombre']
-                        }
-                filtro_serializer = FiltroSerializer(data = campos)
-                if filtro_serializer.is_valid():
-                    filtro_serializer.save()
-            for columna in columnas:
-                campos_columna = {
-                 'nombre': columna,
-                 'reporte': idReporte
-                }
-                columna_serializer = ColumnaSerializer(data=campos_columna)
-                if columna_serializer.is_valid():
-                    columna_serializer.save()
-            for fila in filas:
-                contenido = ""
-                for dato in fila:
-                    contenido = contenido + dato[0] + ":"
-                    if dato[0] == "plan-estado" or dato[0] == "programa-estado" or dato[0] == "campana-estado" or dato[0] == "recurso-estado"  or dato[0] == "oportunidad-estado":
-                        if dato[1] == "No vigente":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Vigente":
-                            contenido = contenido + "1" + ";"
-                    elif dato[0] == "programa-tipo":
-                        if dato[1] == "Programa":
-                            contenido = contenido + "0" + ";"
-                        else:
-                            contenido = contenido + "1" + ";" 
-                    elif dato[0] == "campana-tipo":
-                        if dato[1] == "Campaña de programa" or dato[1] == "Campana de programa":
-                            contenido = contenido + "0" + ";"
-                        else:
-                            contenido = contenido + "1" + ";"
-                    elif dato[0] == "recurso-tipo":
-                        if dato[1] == "Correo":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Publicación" or dato[1] == "Publicacion":
-                            contenido = contenido + "1" + ";" 
-                        elif dato[1] == "Página web" or dato[1] == "Pagina web":
-                            contenido = contenido + "2" + ";"
-                    elif dato[0] == "oportunidad-tipo":
-                        if dato[1] == "Negocio existente":
-                            contenido = contenido + "0" + ";"
-                        else:
-                            contenido = contenido + "1" + ";"
-                    elif dato[0] == "oportunidad-etapa":
-                        if dato[1] == "Calificación" or dato[1] == "Calificacion":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Necesidad de análisis" or dato[1] == "Necesidad de analisis":
-                            contenido = contenido + "1" + ";"
-                        elif dato[1] == "Propuesta":
-                            contenido = contenido + "2" + ";"
-                        elif dato[1] == "Negociación" or dato[1] == "Negociacion":
-                            contenido = contenido + "3" + ";"
-                        elif dato[1] == "Perdida":
-                            contenido = contenido + "4" + ";"
-                        elif dato[1] == "Ganada":
-                            contenido = contenido + "5" + ";"
-                    elif dato[0] == "contacto-estado":
-                        if dato[1] == "Suscriptor":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Lead":
-                            contenido = contenido + "1" + ";" 
-                        elif dato[1] == "Oportunidad":
-                            contenido = contenido + "2" + ";"
-                        elif dato[1] == "Cliente":
-                            contenido = contenido + "3" + ";"
-                    elif dato[0] == "empresa-tipo":
-                        if dato[1] == "Cliente potencial":
-                            contenido = contenido + "0" + ";"
-                        elif dato[1] == "Socio":
-                            contenido = contenido + "1" + ";" 
-                        elif dato[1] == "Revendedor":
-                            contenido = contenido + "2" + ";"
-                        elif dato[1] == "Proveedor":
-                            contenido = contenido + "3" + ";"
-                    else:
-                        contenido = contenido + dato[1] + ";"
-                campos_fila = {
-                 'contenido': contenido,
-                 'reporte': idReporte
-                }
-                fila_serializer = FilaSerializer(data=campos_fila)
-                if fila_serializer.is_valid():
-                    fila_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Reporte registrado correctamente',
-                        },)	
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de reporte',
+                            },)		
 
 class BuscarDetalleReporte(APIView):
     def get(self, request,id):
@@ -2413,6 +2923,7 @@ class BuscarDetalleReporte(APIView):
 
                 filas = Fila.objects.filter(reporte__id=reporte['id']).values('id','contenido')
                 filasLista = [d['contenido'] for d in filas]
+                print(filasLista)
                 
                 for fila in filasLista:
                     datos = str(fila).split(";")
@@ -2507,15 +3018,18 @@ class CrearComponenteInforme(APIView):
             #                 fecha  = datetime.datetime.strptime(par[1], '%d-%m-%Y').date()
             #                 fecha = datetime.datetime(fecha.year,fecha.month,fecha.day,0,0,0)
             #                 fechas.append(fecha)
-                
-            #         #seleccionar todas las fechas y encontrar la menor y mayor
-            #     #crear el arreglo de labels
-            #     for fila in filas:
-            #          #obtener a que label pertenece la fila
-            #         if ejey == "cantidad":
-            #             #segun lo obtenido se suma 1 a cantsy segun el label
-            #         elif ejey == "plan-presupuesto":
-            #             #segun lo obtenido se encuentra el valor de presupuesto y se suma a cantsy segun el label
+            #     fechas.sort()
+            #     fechaMayor = fechas[-1]
+            #     fechaMenor = fechas[0]
+
+                #     #seleccionar todas las fechas y encontrar la menor y mayor
+                # #crear el arreglo de labels
+                # for fila in filas:
+                #      #obtener a que label pertenece la fila
+                #     if ejey == "cantidad":
+                #         #segun lo obtenido se suma 1 a cantsy segun el label
+                #     elif ejey == "plan-presupuesto":
+                #         #segun lo obtenido se encuentra el valor de presupuesto y se suma a cantsy segun el label
             # elif ejex == "plan-inicioVigencia":
             #     for fila in filas:
             #         e
@@ -2644,10 +3158,10 @@ class CrearComponenteInforme(APIView):
                                 index = 1
                     if ejey == "cantidad":
                         cantsy[index] = cantsy[index] + 1
-                    elif ejey == "oportunidad-presupuesto":
+                    elif ejey == "oportunidad-importe":
                         for dato in datos:
                             par = str(dato).split(":")
-                            if par[0] == 'oportunidad-presupuesto':
+                            if par[0] == 'oportunidad-importe':
                                 cantsy[index] = cantsy[index] + float(par[1])
             elif ejex=="oportunidad-tipo":
                 labelsx = ["Negocio existente", "Nuevo negocio"]
@@ -2785,94 +3299,134 @@ class FiltrarDashboards(APIView):
 
 class RegistrarDashboard(APIView):
     def post(self, request,id=0):
-        if request.data["idDashboard"] is not None and request.data["idDashboard"]>0:
-            idDashboard = request.data["idDashboard"]
-            ComponenteLabel.objects.filter(Q(componente__dashboard__id = idDashboard)).delete()
-            ComponenteCantidad.objects.filter(Q(componente__dashboard__id = idDashboard)).delete()
-            Componente.objects.filter(Q(dashboard__id = idDashboard)).delete()
-            componentes = request.data["componentes"]
-            for componente in componentes:
-                campos = {'dashboard': idDashboard,
-                          'tipo': componente['tipo'], #cambiar esta parte
-                          'titulo': componente['titulo'],
-                          'subtitulo': componente['subtitulo']
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idDashboard"] is not None and request.data["idDashboard"]>0:
+                idDashboard = request.data["idDashboard"]
+                ComponenteLabel.objects.filter(Q(componente__dashboard__id = idDashboard)).delete()
+                ComponenteCantidad.objects.filter(Q(componente__dashboard__id = idDashboard)).delete()
+                Componente.objects.filter(Q(dashboard__id = idDashboard)).delete()
+                componentes = request.data["componentes"]
+                for componente in componentes:
+                    campos = {'dashboard': idDashboard,
+                            'tipo': componente['tipo'], #cambiar esta parte
+                            'titulo': componente['titulo'],
+                            'subtitulo': componente['subtitulo']
+                            }
+                    componente_serializer = ComponenteSerializer(data = campos)
+                    idComponente = 0
+                    if componente_serializer.is_valid():
+                        idComponente = componente_serializer.save()
+                        idComponente = idComponente.id
+                    for label in componente['labels']:
+                        campos_label = {
+                            'componente': idComponente,
+                            'label': label
                         }
-                componente_serializer = ComponenteSerializer(data = campos)
-                idComponente = 0
-                if componente_serializer.is_valid():
-                    idComponente = componente_serializer.save()
-                    idComponente = idComponente.id
-                for label in componente['labels']:
-                    campos_label = {
-                        'componente': idComponente,
-                        'label': label
-                    }
-                    label_serializer = ComponenteLabelSerializer(data = campos_label)
-                    if label_serializer.is_valid():
-                        label_serializer.save()
-                for cantidad in componente['cantidades']:
-                    campos_cantidad = {
-                        'componente': idComponente,
-                        'cantidad': cantidad
-                    }
-                    cantidad_serializer = ComponenteCantidadSerializer(data = campos_cantidad)
-                    if cantidad_serializer.is_valid():
-                        cantidad_serializer.save()
-            dashboard = Dashboard.objects.filter(id=idDashboard).first()
-            if request.data["principal"] == True: Dashboard.objects.filter(propietario__id=request.data["propietario"]).update(principal=False)
-            campos_dashboard = {
-                'nombre': request.data["nombre"],
-                 'descripcion': request.data["descripcion"],
-                 'principal': request.data["principal"],
-                 'propietario': request.data["propietario"]
-            }
-            dashboard_serializer = DashboardSerializer(dashboard, data=campos_dashboard)
-            if dashboard_serializer.is_valid():
-                dashboard_serializer.save()
-        else:
-            if request.data["principal"] == True: Dashboard.objects.filter(propietario__id=request.data["propietario"]).update(principal=False)
-            campos_dashboard = {
-                'nombre': request.data["nombre"],
-                 'descripcion': request.data["descripcion"],
-                 'principal': request.data["principal"],
-                 'propietario': request.data["propietario"]
-            }
-            dashboard_serializer = DashboardSerializer(data=campos_dashboard)
-            if dashboard_serializer.is_valid():
-                idDashboard = dashboard_serializer.save()
-                idDashboard = idDashboard.id
-            componentes = request.data["componentes"]
-            for componente in componentes:
-                campos = {'dashboard': idDashboard,
-                          'tipo': componente['tipo'], #cambiar esta parte
-                          'titulo': componente['titulo'],
-                          'subtitulo': componente['subtitulo']
+                        label_serializer = ComponenteLabelSerializer(data = campos_label)
+                        if label_serializer.is_valid():
+                            label_serializer.save()
+                    for cantidad in componente['cantidades']:
+                        campos_cantidad = {
+                            'componente': idComponente,
+                            'cantidad': cantidad
                         }
-                componente_serializer = ComponenteSerializer(data = campos)
-                idComponente = 0
-                if componente_serializer.is_valid():
-                    idComponente = componente_serializer.save()
-                    idComponente = idComponente.id
-                for label in componente['labels']:
-                    campos_label = {
-                        'componente': idComponente,
-                        'label': label
-                    }
-                    label_serializer = ComponenteLabelSerializer(data = campos_label)
-                    if label_serializer.is_valid():
-                        label_serializer.save()
-                for cantidad in componente['cantidades']:
-                    campos_cantidad = {
-                        'componente': idComponente,
-                        'cantidad': cantidad
-                    }
-                    cantidad_serializer = ComponenteCantidadSerializer(data = campos_cantidad)
-                    if cantidad_serializer.is_valid():
-                        cantidad_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Dashboard registrado correctamente',
-                        },)	
+                        cantidad_serializer = ComponenteCantidadSerializer(data = campos_cantidad)
+                        if cantidad_serializer.is_valid():
+                            cantidad_serializer.save()
+                dashboard = Dashboard.objects.filter(id=idDashboard).first()
+                if request.data["principal"] == True: Dashboard.objects.filter(propietario__id=request.data["propietario"]).update(principal=False)
+                campos_dashboard = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'principal': request.data["principal"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                dashboard_serializer = DashboardSerializer(dashboard, data=campos_dashboard)
+                if dashboard_serializer.is_valid():
+                    dashboard_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Informes y Reportes",
+                            'descripcion': "Modificación de dashboard de marketing: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                if request.data["principal"] == True: Dashboard.objects.filter(propietario__id=request.data["propietario"]).update(principal=False)
+                campos_dashboard = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'principal': request.data["principal"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                dashboard_serializer = DashboardSerializer(data=campos_dashboard)
+                if dashboard_serializer.is_valid():
+                    idDashboard = dashboard_serializer.save()
+                    idDashboard = idDashboard.id
+                componentes = request.data["componentes"]
+                for componente in componentes:
+                    campos = {'dashboard': idDashboard,
+                            'tipo': componente['tipo'], #cambiar esta parte
+                            'titulo': componente['titulo'],
+                            'subtitulo': componente['subtitulo']
+                            }
+                    componente_serializer = ComponenteSerializer(data = campos)
+                    idComponente = 0
+                    if componente_serializer.is_valid():
+                        idComponente = componente_serializer.save()
+                        idComponente = idComponente.id
+                    for label in componente['labels']:
+                        campos_label = {
+                            'componente': idComponente,
+                            'label': label
+                        }
+                        label_serializer = ComponenteLabelSerializer(data = campos_label)
+                        if label_serializer.is_valid():
+                            label_serializer.save()
+                    for cantidad in componente['cantidades']:
+                        campos_cantidad = {
+                            'componente': idComponente,
+                            'cantidad': cantidad
+                        }
+                        cantidad_serializer = ComponenteCantidadSerializer(data = campos_cantidad)
+                        if cantidad_serializer.is_valid():
+                            cantidad_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Informes y Reportes",
+                            'descripcion': "Creación de dashboard de marketing: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Dashboard registrado correctamente',
+                            },)	
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Informes y Reportes",
+                        'codigo': "IDR001",
+                        'descripcion': "Error en registro de dashboard de marketing",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de dashboard',
+                            },)	
 
 class BuscarDetalleDashboard(APIView):
     def get(self, request,id):
@@ -2907,11 +3461,42 @@ class BuscarDetalleDashboard(APIView):
 class EliminarDashboard(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            ComponenteLabel.objects.filter(Q(componente__dashboard__id = id)).delete()
-            ComponenteCantidad.objects.filter(Q(componente__dashboard__id = id)).delete()
-            Componente.objects.filter(Q(dashboard__id = id)).delete()
-            Dashboard.objects.filter(id=id).delete()
-            return Response('Dashboard eliminado',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            dashboard = Dashboard.objects.filter(id=id).values('nombre','propietario__id').first()
+            if dashboard is not None:
+                propietarioId = dashboard['propietario__id']
+                nombre = dashboard['nombre']
+                try:
+                    ComponenteLabel.objects.filter(Q(componente__dashboard__id = id)).delete()
+                    ComponenteCantidad.objects.filter(Q(componente__dashboard__id = id)).delete()
+                    Componente.objects.filter(Q(dashboard__id = id)).delete()
+                    Dashboard.objects.filter(id=id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Informes y Reportes",
+                                'descripcion': "Eliminación de dashboard de marketing: " + nombre,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Dashboard eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Informes y Reportes",
+                                'codigo': "IDE001",
+                                'descripcion': "Error en eliminación de dashboard de marketing",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de dashboard',
+                                    },)	
         return Response('Dashboard no encontrado',status=status.HTTP_200_OK)
 
 class FiltrarFlujos(APIView):
@@ -2953,32 +3538,72 @@ class FiltrarFlujos(APIView):
 
 class RegistrarFlujo(APIView):
     def post(self, request,id=0):
-        if request.data["idFlujo"] is not None and request.data["idFlujo"]>0:
-            idFlujo = request.data["idFlujo"]
-            flujo = Flujo.objects.filter(id=idFlujo).first()
-            campos_flujo = {
-                'nombre': request.data["nombre"],
-                 'descripcion': request.data["descripcion"],
-                 'contenido': request.data["contenido"],
-                 'propietario': request.data["propietario"]
-            }
-            flujo_serializer = FlujoSerializer(flujo, data=campos_flujo)
-            if flujo_serializer.is_valid():
-                flujo_serializer.save()
-        else:
-            campos_flujo = {
-                'nombre': request.data["nombre"],
-                 'descripcion': request.data["descripcion"],
-                 'contenido': request.data["contenido"],
-                 'propietario': request.data["propietario"]
-            }
-            flujo_serializer = FlujoSerializer(data=campos_flujo)
-            if flujo_serializer.is_valid():
-                flujo_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Flujo registrado correctamente',
-                        },)	
+        propietarioId = request.data["propietario"]
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idFlujo"] is not None and request.data["idFlujo"]>0:
+                idFlujo = request.data["idFlujo"]
+                flujo = Flujo.objects.filter(id=idFlujo).first()
+                campos_flujo = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'contenido': request.data["contenido"],
+                    'propietario': request.data["propietario"],
+                        'fechaModificacion': fechaActual
+                }
+                flujo_serializer = FlujoSerializer(flujo, data=campos_flujo)
+                if flujo_serializer.is_valid():
+                    flujo_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Flujos de trabajo",
+                            'descripcion': "Modificación de flujo de trabajo: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            else:
+                campos_flujo = {
+                    'nombre': request.data["nombre"],
+                    'descripcion': request.data["descripcion"],
+                    'contenido': request.data["contenido"],
+                    'propietario': request.data["propietario"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                flujo_serializer = FlujoSerializer(data=campos_flujo)
+                if flujo_serializer.is_valid():
+                    flujo_serializer.save()
+                campos_log = {'tipo': "0",
+                            'fuente': "Sección Flujos de trabajo",
+                            'descripcion': "Creación de flujo de trabajo: " + request.data["nombre"],
+                            'propietario': propietarioId,
+                            'fechaHora': fechaActual
+                            }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Flujo registrado correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            campos_log = {'tipo': "1",
+                        'fuente': "Sección Flujos de trabajo",
+                        'codigo': "MFR001",
+                        'descripcion': "Error en registro de flujo de trabajo",
+                        'propietario': propietarioId,
+                        'fechaHora': fechaActual
+                        }
+            log_serializer = LogSerializer(data = campos_log)
+            if log_serializer.is_valid():
+                log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de flujo',
+                            },)		
 
 class BuscarDetalleFlujo(APIView):
     def get(self, request,id):
@@ -3000,8 +3625,39 @@ class BuscarDetalleFlujo(APIView):
 class EliminarFlujo(APIView):
     def delete(self, request,id=0):
         if id != "" and id > 0:
-            Flujo.objects.filter(id = id).delete()
-            return Response('Flujo eliminado',status=status.HTTP_200_OK)
+            fechaActual = datetime.datetime.now()
+            flujo = Flujo.objects.filter(id=id).values('nombre','propietario__id').first()
+            if flujo is not None:
+                propietarioId = flujo['propietario__id']
+                nombre = flujo['nombre']
+                try:
+                    Flujo.objects.filter(id = id).delete()
+                    campos_log = {'tipo': "0",
+                                'fuente': "Sección Flujos de trabajo",
+                                'descripcion': "Eliminación de flujo de trabajo: " + nombre,
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response('Flujo eliminado',status=status.HTTP_200_OK)
+                except Exception as e:
+                    #guardar error con propietarioId
+                    campos_log = {'tipo': "1",
+                                'fuente': "Sección Flujos de trabajo",
+                                'codigo': "MFE001",
+                                'descripcion': "Error en eliminación de flujo de trabajo",
+                                'propietario': propietarioId,
+                                'fechaHora': fechaActual
+                                }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                    return Response(status=status.HTTP_200_OK,
+                                    data={
+                                        'message': 'Error en eliminación de flujo',
+                                    },)	
         return Response('Flujo no encontrado',status=status.HTTP_200_OK)
 
 class BuscarPrincipalDashboard(APIView):

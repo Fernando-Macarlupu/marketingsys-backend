@@ -16,8 +16,8 @@ class Plan(models.Model):
     finVigencia = models.DateTimeField(blank=True,null =True)
     estado = models.CharField(max_length=20, choices=estado_choices, null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Estrategia(models.Model):
     tipo_choices = [
@@ -39,8 +39,8 @@ class Estrategia(models.Model):
     estado = models.CharField(max_length=20, choices=estado_choices, null=True, blank=True)
     leads = models.ForeignKey(Lista, on_delete=models.SET_NULL, null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Campana(models.Model):
     tipo_choices = [
@@ -63,8 +63,8 @@ class Campana(models.Model):
     estado = models.CharField(max_length=20, choices=estado_choices, null=True, blank=True)
     leads = models.ForeignKey(Lista, on_delete=models.SET_NULL, null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class CampanaXContacto(models.Model):
     campana = models.ForeignKey(Campana, on_delete=models.CASCADE, null=True, blank=True)
@@ -107,6 +107,8 @@ class Recurso(models.Model):
     servicioRedSocial = models.CharField(max_length=20, choices=redes_choices, null=True, blank=True)
     usuarioRedSocial = models.CharField(max_length=50, null=True, blank=True)
     audienciaRedSocial = models.CharField(max_length=20, choices=audiencia_choices, null=True, blank=True)
+    tokenRedSocial = models.TextField(null=True, blank=True)
+    paginaIdRedSocial = models.TextField(null=True, blank=True)
 
     titulo = models.TextField(null=True, blank=True)
     dominio = models.TextField(null=True, blank=True)
@@ -115,8 +117,8 @@ class Recurso(models.Model):
     contenido = models.TextField(null=True, blank=True)
     contenidoHTML = models.TextField(null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class RecursoXContacto(models.Model):
     recurso = models.ForeignKey(Recurso, on_delete=models.CASCADE, null=True, blank=True)
@@ -138,8 +140,8 @@ class Reporte(models.Model):
     descripcion = models.CharField(max_length=200, null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=tipo_choices, null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Columna(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -157,8 +159,8 @@ class Dashboard(models.Model):
     descripcion = models.CharField(max_length=200, null=True, blank=True)
     principal = models.BooleanField(default=False)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Componente(models.Model):
     tipo_choices = [
@@ -247,8 +249,8 @@ class Indicador(models.Model):
     calculoAutomatico = models.BooleanField(default=False)
     automatica = models.BooleanField(default=False)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class IndicadorAsignado(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -292,8 +294,8 @@ class Oportunidad(models.Model):
     finVigencia = models.DateTimeField(blank=True,null =True)
     estado = models.CharField(max_length=20, choices=estado_choices, null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class OportunidadXContacto(models.Model):
     oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, null=True, blank=True)
@@ -305,8 +307,8 @@ class Flujo(models.Model):
     descripcion = models.CharField(max_length=200, null=True, blank=True)
     contenido = models.TextField(null=True, blank=True)
     propietario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Imagen(models.Model):
     id = models.BigAutoField(primary_key=True)

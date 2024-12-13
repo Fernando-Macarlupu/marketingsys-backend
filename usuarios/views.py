@@ -21,16 +21,195 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from sistema.serializers import LogSerializer
 #from zappa.asynchronous import task
 
 class RegistrarUsuario(APIView):
     def post(self, request,id=0):
-        if request.data["idUsuario"] is not None and request.data["idUsuario"]>0:
-            idUsuario = request.data["idUsuario"]
-            persona = Usuario.objects.filter(id=idUsuario).values("persona__id").first()
-            idPersona = persona['persona__id']
-            if request.data["guardarPerfil"] == "1":
-                CuentaCorreo.objects.filter(Q(usuario__id = idUsuario)).delete()
+        fechaActual = datetime.datetime.now()
+        try:
+            if request.data["idUsuario"] is not None and request.data["idUsuario"]>0:
+                idUsuario = request.data["idUsuario"]
+                persona = Usuario.objects.filter(id=idUsuario).values("persona__id","cuentaUsuario__id","persona__nombreCompleto").first()
+                idCuenta = persona['cuentaUsuario__id']
+                idPersona = persona['persona__id']
+                nombre = persona['persona__nombreCompleto']
+                if request.data["guardarPerfil"] == "1":
+                    CuentaCorreo.objects.filter(Q(usuario__id = idUsuario)).delete()
+                    correos = request.data["correos"]
+                    for correo in correos:
+                        campos = {'servicio': correo['servicio'],
+                                'direccion': correo['direccion'],
+                                'contrasena': correo['contrasena'],
+                                'usuario': idUsuario
+                                }
+                        correo_serializer = CuentaCorreoSerializer(data = campos)
+                        if correo_serializer.is_valid():
+                            correo_serializer.save()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Perfil de usuario",
+                                    'descripcion': "Modificación de correos de usuario: " + nombre,
+                                    'propietario': idCuenta,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                elif request.data["guardarPerfil"] == "2":
+                    CuentaRedSocial.objects.filter(Q(usuario__id = idUsuario)).delete()
+                    redes = request.data["redes"]
+                    for red in redes:
+                        campos = {'redSocial': red['redSocial'],
+                                'nombreUsuario': red['nombreUsuario'],
+                                'usuario': idUsuario,
+                                'tokenRedSocial': red['tokenRedSocial'],
+                                'paginaIdRedSocial': red['paginaIdRedSocial']
+                                }
+                        red_serializer = CuentaRedSocialSerializer(data = campos)
+                        if red_serializer.is_valid():
+                            red_serializer.save()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Perfil de usuario",
+                                    'descripcion': "Modificación de redes de usuario: " + nombre,
+                                    'propietario': idCuenta,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                elif request.data["guardarPerfil"] == "0":
+                    usuario = Usuario.objects.filter(id=idUsuario).first()
+                    campos_usuario = {
+                        'nombreUsuario': request.data["nombreUsuario"],
+                        'contrasena': request.data["contrasena"],
+                        'foto': request.data["foto"],
+                        'rol': request.data["rol"],
+                        'esAdministrador': request.data["esAdministrador"],
+                        'fechaModificacion': fechaActual
+                    }
+                    usuario_serializer =UsuarioSerializer(usuario, data=campos_usuario)
+                    if usuario_serializer.is_valid():
+                        usuario_serializer.save()
+                    persona = Persona.objects.filter(id=idPersona).first()
+                    campos_persona = {
+                        'nombreCompleto': request.data["nombreCompleto"],
+                        'fechaModificacion': fechaActual
+                    }
+                    persona_serializer = PersonaSerializer(persona, data=campos_persona)
+                    if persona_serializer.is_valid():
+                        persona_serializer.save()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Perfil de usuario",
+                                    'descripcion': "Modificación de perfil de usuario: " + nombre,
+                                    'propietario': idCuenta,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                elif request.data["guardarPerfil"] == "3":
+                    politicas = request.data["politicas"]
+                    for politica in politicas:
+                        UsuarioXPoliticaContrasena.objects.filter(Q(usuario__id=idUsuario) & Q(politicaContrasena__id = politica['id'])).update(estado=politica['estado'])
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Perfil de usuario",
+                                    'descripcion': "Modificación de políticas de contraseña de usuario: " + nombre,
+                                    'propietario': idCuenta,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                elif request.data["guardarPerfil"] == "4":
+                    idCuenta = request.data["cuentaUsuario"]['id']
+                    cuenta = CuentaUsuario.objects.filter(id=idCuenta).first()
+                    expiracionCuenta = request.data["cuentaUsuario"]['expiracionCuenta']
+                    expiracionCuenta = datetime.datetime.strptime(expiracionCuenta, '%d-%m-%Y').date()
+                    campos_cuenta = {
+                        'nombre': request.data["cuentaUsuario"]['nombre'],
+                        'expiracionCuenta': datetime.datetime(expiracionCuenta.year,expiracionCuenta.month,expiracionCuenta.day, 0,0,0),
+                        'diasExpiracioncuenta': request.data["cuentaUsuario"]['diasExpiracioncuenta'],
+                        'fechaModificacion': fechaActual
+                    }
+                    cuenta_serializer =CuentaUsuarioSerializer(cuenta, data=campos_cuenta)
+                    if cuenta_serializer.is_valid():
+                        cuenta_serializer.save()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Perfil de usuario",
+                                    'descripcion': "Modificación de expiración de cuenta de usuario: " + nombre,
+                                    'propietario': idCuenta,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+                else:
+                    idCuenta = request.data["cuentaUsuario"]['id']
+                    cuenta = CuentaUsuario.objects.filter(id=idCuenta).first()
+                    expiracionCuenta = request.data["cuentaUsuario"]['expiracionCuenta']
+                    expiracionCuenta = datetime.datetime.strptime(expiracionCuenta, '%d-%m-%Y').date()
+                    campos_cuenta = {
+                        'nombre': request.data["cuentaUsuario"]['nombre'],
+                        'expiracionCuenta': datetime.datetime(expiracionCuenta.year,expiracionCuenta.month,expiracionCuenta.day, 0,0,0),
+                        'diasExpiracioncuenta': request.data["cuentaUsuario"]['diasExpiracioncuenta']
+                    }
+                    cuenta_serializer =CuentaUsuarioSerializer(cuenta, data=campos_cuenta)
+                    if cuenta_serializer.is_valid():
+                        cuenta_serializer.save()
+                    campos_log = {'tipo': "0",
+                                    'fuente': "Perfil de usuario",
+                                    'descripcion': "Modificación de cuenta de usuario: " + nombre,
+                                    'propietario': idCuenta,
+                                    'fechaHora': fechaActual
+                                    }
+                    log_serializer = LogSerializer(data = campos_log)
+                    if log_serializer.is_valid():
+                        log_serializer.save()
+            else:
+                campos_persona = {
+                    'nombreCompleto': request.data["nombreCompleto"],
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                persona_serializer = PersonaSerializer(data=campos_persona)
+                idPersona = 0
+                if persona_serializer.is_valid():
+                    idPersona = persona_serializer.save()
+                    idPersona = idPersona.id
+                idCuenta = 0
+                if request.data["cuentaUsuario"]['id'] == 0:
+                    expiracionCuenta = request.data["cuentaUsuario"]['expiracionCuenta']
+                    expiracionCuenta = datetime.datetime.strptime(expiracionCuenta, '%d-%m-%Y').date()
+                    campos_cuenta = {
+                        'nombre': request.data["cuentaUsuario"]['nombre'],
+                        'expiracionCuenta': datetime.datetime(expiracionCuenta.year,expiracionCuenta.month,expiracionCuenta.day, 0,0,0),
+                        'diasExpiracioncuenta': request.data["cuentaUsuario"]['diasExpiracioncuenta'],
+                        'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                    }
+                    cuenta_serializer = CuentaUsuarioSerializer(data=campos_cuenta)
+                    
+                    if cuenta_serializer.is_valid():
+                        idCuenta = cuenta_serializer.save()
+                        idCuenta = idCuenta.id
+                else:
+                    idCuenta = request.data["cuentaUsuario"]['id']
+                campos_usuario = {
+                    'persona': idPersona,
+                    'nombreUsuario': request.data["nombreUsuario"],
+                    'contrasena': request.data["contrasena"],
+                    'esAdministrador': request.data["esAdministrador"],
+                    'rol': request.data["rol"],
+                    'cuentaUsuario': idCuenta,
+                    'fechaCreacion': fechaActual,
+                        'fechaModificacion': fechaActual
+                }
+                print(campos_usuario)
+                usuario_serializer =UsuarioSerializer(data=campos_usuario)
+                idUsuario = 0
+                if usuario_serializer.is_valid():
+                    idUsuario = usuario_serializer.save()
+                    idUsuario = idUsuario.id
                 correos = request.data["correos"]
                 for correo in correos:
                     campos = {'servicio': correo['servicio'],
@@ -38,11 +217,13 @@ class RegistrarUsuario(APIView):
                             'contrasena': correo['contrasena'],
                             'usuario': idUsuario
                             }
+                    if "@gmail" in correo['direccion']:
+                        campos['servicio'] = "0"
+                    elif "@hotmail" in correo['direccion'] or "@outlook" in correo['direccion']:
+                        campos['servicio'] = "1"
                     correo_serializer = CuentaCorreoSerializer(data = campos)
                     if correo_serializer.is_valid():
                         correo_serializer.save()
-            elif request.data["guardarPerfil"] == "2":
-                CuentaRedSocial.objects.filter(Q(usuario__id = idUsuario)).delete()
                 redes = request.data["redes"]
                 for red in redes:
                     campos = {'redSocial': red['redSocial'],
@@ -52,126 +233,34 @@ class RegistrarUsuario(APIView):
                     red_serializer = CuentaRedSocialSerializer(data = campos)
                     if red_serializer.is_valid():
                         red_serializer.save()
-            elif request.data["guardarPerfil"] == "0":
-                usuario = Usuario.objects.filter(id=idUsuario).first()
-                campos_usuario = {
-                    'nombreUsuario': request.data["nombreUsuario"],
-                    'contrasena': request.data["contrasena"],
-                    'foto': request.data["foto"],
-                    'rol': request.data["rol"],
-                    'esAdministrador': request.data["esAdministrador"],
-                }
-                usuario_serializer =UsuarioSerializer(usuario, data=campos_usuario)
-                if usuario_serializer.is_valid():
-                    usuario_serializer.save()
-                persona = Persona.objects.filter(id=idPersona).first()
-                campos_persona = {
-                    'nombreCompleto': request.data["nombreCompleto"],
-                }
-                persona_serializer = PersonaSerializer(persona, data=campos_persona)
-                if persona_serializer.is_valid():
-                    persona_serializer.save()
-            elif request.data["guardarPerfil"] == "3":
                 politicas = request.data["politicas"]
                 for politica in politicas:
-                    UsuarioXPoliticaContrasena.objects.filter(Q(usuario__id=idUsuario) & Q(politicaContrasena__id = politica['id'])).update(estado=politica['estado'])
-            elif request.data["guardarPerfil"] == "4":
-                idCuenta = request.data["cuentaUsuario"]['id']
-                cuenta = CuentaUsuario.objects.filter(id=idCuenta).first()
-                expiracionCuenta = request.data["cuentaUsuario"]['expiracionCuenta']
-                expiracionCuenta = datetime.datetime.strptime(expiracionCuenta, '%d-%m-%Y').date()
-                campos_cuenta = {
-                    'nombre': request.data["cuentaUsuario"]['nombre'],
-                    'expiracionCuenta': datetime.datetime(expiracionCuenta.year,expiracionCuenta.month,expiracionCuenta.day, 0,0,0),
-                    'diasExpiracioncuenta': request.data["cuentaUsuario"]['diasExpiracioncuenta']
-                }
-                cuenta_serializer =CuentaUsuarioSerializer(cuenta, data=campos_cuenta)
-                if cuenta_serializer.is_valid():
-                    cuenta_serializer.save()
-            else:
-                idCuenta = request.data["cuentaUsuario"]['id']
-                cuenta = CuentaUsuario.objects.filter(id=idCuenta).first()
-                expiracionCuenta = request.data["cuentaUsuario"]['expiracionCuenta']
-                expiracionCuenta = datetime.datetime.strptime(expiracionCuenta, '%d-%m-%Y').date()
-                campos_cuenta = {
-                    'nombre': request.data["cuentaUsuario"]['nombre'],
-                    'expiracionCuenta': datetime.datetime(expiracionCuenta.year,expiracionCuenta.month,expiracionCuenta.day, 0,0,0),
-                    'diasExpiracioncuenta': request.data["cuentaUsuario"]['diasExpiracioncuenta']
-                }
-                cuenta_serializer =CuentaUsuarioSerializer(cuenta, data=campos_cuenta)
-                if cuenta_serializer.is_valid():
-                    cuenta_serializer.save()
-        else:
-            campos_persona = {
-                 'nombreCompleto': request.data["nombreCompleto"],
-            }
-            persona_serializer = PersonaSerializer(data=campos_persona)
-            idPersona = 0
-            if persona_serializer.is_valid():
-                idPersona = persona_serializer.save()
-                idPersona = idPersona.id
-            idCuenta = 0
-            if request.data["cuentaUsuario"]['id'] == 0:
-                expiracionCuenta = request.data["cuentaUsuario"]['expiracionCuenta']
-                expiracionCuenta = datetime.datetime.strptime(expiracionCuenta, '%d-%m-%Y').date()
-                campos_cuenta = {
-                    'nombre': request.data["cuentaUsuario"]['nombre'],
-                    'expiracionCuenta': datetime.datetime(expiracionCuenta.year,expiracionCuenta.month,expiracionCuenta.day, 0,0,0),
-                    'diasExpiracioncuenta': request.data["cuentaUsuario"]['diasExpiracioncuenta']
-                }
-                cuenta_serializer = CuentaUsuarioSerializer(data=campos_cuenta)
-                
-                if cuenta_serializer.is_valid():
-                    idCuenta = cuenta_serializer.save()
-                    idCuenta = idCuenta.id
-            else:
-                idCuenta = request.data["cuentaUsuario"]['id']
-            campos_usuario = {
-                'persona': idPersona,
-                'nombreUsuario': request.data["nombreUsuario"],
-                'contrasena': request.data["contrasena"],
-                'esAdministrador': request.data["esAdministrador"],
-                'rol': request.data["rol"],
-                'cuentaUsuario': idCuenta
-            }
-            print(campos_usuario)
-            usuario_serializer =UsuarioSerializer(data=campos_usuario)
-            idUsuario = 0
-            if usuario_serializer.is_valid():
-                idUsuario = usuario_serializer.save()
-                idUsuario = idUsuario.id
-            correos = request.data["correos"]
-            for correo in correos:
-                campos = {'servicio': correo['servicio'],
-                          'direccion': correo['direccion'],
-                          'contrasena': correo['contrasena'],
-                        'usuario': idUsuario
-                        }
-                correo_serializer = CuentaCorreoSerializer(data = campos)
-                if correo_serializer.is_valid():
-                    correo_serializer.save()
-            redes = request.data["redes"]
-            for red in redes:
-                campos = {'redSocial': red['redSocial'],
-                          'nombreUsuario': red['nombreUsuario'],
-                        'usuario': idUsuario
-                        }
-                red_serializer = CuentaRedSocialSerializer(data = campos)
-                if red_serializer.is_valid():
-                    red_serializer.save()
-            politicas = request.data["politicas"]
-            for politica in politicas:
-                campos = {'politicaContrasena': politica['id'],
-                          'estado': politica['estado'],
-                        'usuario': idUsuario
-                        }
-                politica_serializer = UsuarioXPoliticaContrasenaSerializer(data = campos)
-                if politica_serializer.is_valid():
-                    politica_serializer.save()
-        return Response(status=status.HTTP_200_OK,
-                        data={
-                            'message': 'Usuario registrado correctamente',
-                        },)	
+                    campos = {'politicaContrasena': politica['id'],
+                            'estado': politica['estado'],
+                            'usuario': idUsuario
+                            }
+                    politica_serializer = UsuarioXPoliticaContrasenaSerializer(data = campos)
+                    if politica_serializer.is_valid():
+                        politica_serializer.save()
+                campos_log = {'tipo': "0",
+                                'fuente': "Perfil de usuario",
+                                'descripcion': "Creación de usuario: " + request.data["nombreCompleto"],
+                                'propietario': idCuenta,
+                                'fechaHora': fechaActual
+                                }
+                log_serializer = LogSerializer(data = campos_log)
+                if log_serializer.is_valid():
+                    log_serializer.save()
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Usuario registrado correctamente',
+                            },)
+        except Exception as e:
+            #guardar error con propietarioId
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en registro de usuario',
+                            },)		
     
 class BuscarCorreosUsuario(APIView):
     def get(self, request,id):
@@ -187,8 +276,9 @@ class BuscarRedesUsuario(APIView):
         if request.data["id"] != "" and request.data["id"] > 0:
             redesRespuesta = []
             tipo = request.data["tipo"]
-            redes = CuentaRedSocial.objects.filter(Q(usuario__id = request.data["id"]) & Q(redSocial = tipo)).values('nombreUsuario')
+            redes = CuentaRedSocial.objects.filter(Q(usuario__id = request.data["id"]) & Q(redSocial = tipo)).values('nombreUsuario','tokenRedSocial', 'paginaIdRedSocial')
             redesRespuesta = list(redes)
+            print(redesRespuesta)
             return Response(redesRespuesta, status = status.HTTP_200_OK)
         return Response('No se ha encontrado al usuario', status = status.HTTP_200_OK)
 
@@ -214,7 +304,7 @@ class BuscarDetalleUsuario(APIView):
                 }
                 correos = CuentaCorreo.objects.filter(Q(usuario__id = usuario['id'])).values('servicio','direccion','contrasena')
                 campos_usuario['correos'] = list(correos)
-                redes = CuentaRedSocial.objects.filter(Q(usuario__id = usuario['id'])).values('redSocial','nombreUsuario')
+                redes = CuentaRedSocial.objects.filter(Q(usuario__id = usuario['id'])).values('redSocial','nombreUsuario','tokenRedSocial', 'paginaIdRedSocial')
                 campos_usuario['redes'] = list(redes)
                 cuentaUsuario = CuentaUsuario.objects.filter(Q(usuario__id = usuario['cuentaUsuario__id'])).values('id','nombre','expiracionCuenta','diasExpiracioncuenta','fechaCreacion').first()
                 if cuentaUsuario is not None:
@@ -375,49 +465,55 @@ class EnviarCodigoRecuperacionAPIView(APIView):
         my_username = "marketing.sys.group@gmail.com"
         my_password = "xlpz jdnf vlwg ufnw"
         my_use_tls = True
-        connection = get_connection(host=my_host, 
-                                        port=my_port, 
-                                        username=my_username, 
-                                        password=my_password, 
-                                    use_tls=my_use_tls,
-                                    fail_silently=False)
-        connection.open()
-        mensaje = """ <!DOCTYPE html>
-                        <html lang="en" >
-                        <head>
-                        <meta charset="UTF-8">
-                        <title>Plantilla de correo</title>
-                        
+        try:
+            connection = get_connection(host=my_host, 
+                                            port=my_port, 
+                                            username=my_username, 
+                                            password=my_password, 
+                                        use_tls=my_use_tls,
+                                        fail_silently=False)
+            connection.open()
+            mensaje = """ <!DOCTYPE html>
+                            <html lang="en" >
+                            <head>
+                            <meta charset="UTF-8">
+                            <title>Plantilla de correo</title>
+                            
 
-                        </head>
-                        <body>
-                        <!-- partial:index.partial.html -->
-                        <div style="font-family: Helvetica,Arial,sans-serif;min-width:1000px;overflow:auto;line-height:2">
-                        <div style="margin:50px auto;width:70%;padding:20px 0">
-                            <div style="border-bottom:1px solid #eee">
-                            <a href="" style="font-size:1.4em;color: #00466a;text-decoration:none;font-weight:600">MarketingSYS</a>
+                            </head>
+                            <body>
+                            <!-- partial:index.partial.html -->
+                            <div style="font-family: Helvetica,Arial,sans-serif;min-width:1000px;overflow:auto;line-height:2">
+                            <div style="margin:50px auto;width:70%;padding:20px 0">
+                                <div style="border-bottom:1px solid #eee">
+                                <a href="" style="font-size:1.4em;color: #00466a;text-decoration:none;font-weight:600">MarketingSYS</a>
+                                </div>
+                                <p style="font-size:1.1em">Hola estimado usuario,</p>
+                                <p>Use el siguiente codigo para completar la recuperación de su contraseña.</p>
+                                <h2 style="background: #00466a;margin: 0 auto;width: max-content;padding: 0 10px;color: #fff;border-radius: 4px;">{}</h2>
+                                <p style="font-size:0.9em;">Atentamente,<br />MarketingSYS</p>
+                                <hr style="border:none;border-top:1px solid #eee" />
                             </div>
-                            <p style="font-size:1.1em">Hola estimado usuario,</p>
-                            <p>Use el siguiente codigo para completar la recuperación de su contraseña.</p>
-                            <h2 style="background: #00466a;margin: 0 auto;width: max-content;padding: 0 10px;color: #fff;border-radius: 4px;">{}</h2>
-                            <p style="font-size:0.9em;">Atentamente,<br />MarketingSYS</p>
-                            <hr style="border:none;border-top:1px solid #eee" />
-                        </div>
-                        </div>
-                        <!-- partial -->
-                        
-                        </body>
-                        </html> """.format(codigo)
-        #html_message = render_to_string(mensaje)
-        plain_message = strip_tags(mensaje)
-        message = EmailMultiAlternatives(subject="MarketingSYS - Recuperación de contraseña", 
-                                            body=plain_message,
-                                            from_email="marketingSYS", #ver si esta bien o poner none
-                                            to=[correo], #ver si funciona bien o poner to=
-                                            connection=connection)
-        message.attach_alternative(mensaje, "text/html")
-        message.send()
-        connection.close()
+                            </div>
+                            <!-- partial -->
+                            
+                            </body>
+                            </html> """.format(codigo)
+            #html_message = render_to_string(mensaje)
+            plain_message = strip_tags(mensaje)
+            message = EmailMultiAlternatives(subject="MarketingSYS - Recuperación de contraseña", 
+                                                body=plain_message,
+                                                from_email="marketingSYS", #ver si esta bien o poner none
+                                                to=[correo], #ver si funciona bien o poner to=
+                                                connection=connection)
+            message.attach_alternative(mensaje, "text/html")
+            message.send()
+            connection.close()
+        except Exception as e:
+            return Response(status=status.HTTP_200_OK,
+                            data={
+                                'message': 'Error en actualización de contraseña',
+                            },)	
         return Response({"idUsuario": correoBD['usuario__id']}, status = status.HTTP_200_OK)
 
 class ActualizarContrasena(APIView):

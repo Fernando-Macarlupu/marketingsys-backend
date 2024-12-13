@@ -15,14 +15,14 @@ class CuentaUsuario(models.Model):
     nombre = models.CharField(max_length=100, null=True, blank=True)
     expiracionCuenta = models.DateTimeField(blank=True,null =True)
     diasExpiracioncuenta = models.IntegerField(blank=True,null =True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 class Persona(models.Model):
     id = models.BigAutoField(primary_key=True)
     nombreCompleto = models.CharField(max_length=50, null=True, blank=True)
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
     def __str__(self):
         return self.nombreCompleto
@@ -38,8 +38,8 @@ class Usuario(models.Model):
     cuentaUsuario = models.ForeignKey(CuentaUsuario, on_delete=models.SET_NULL, null=True, blank=True)
     usuario_x_politicaContrasena = models.ManyToManyField(PoliticaContrasena, through='UsuarioXPoliticaContrasena')
     usuario_x_notificacion = models.ManyToManyField(Notificacion, through='UsuarioXNotificacion')
-    fechaCreacion = models.DateTimeField(auto_now_add=True)
-    fechaModificacion = models.DateTimeField(auto_now=True)
+    fechaCreacion = models.DateTimeField(blank=True,null =True)
+    fechaModificacion = models.DateTimeField(blank=True,null =True)
 
 # class UsuarioXCuentaCorreo(models.Model):
 #     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)

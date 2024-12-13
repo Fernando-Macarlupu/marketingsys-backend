@@ -31,6 +31,12 @@ class FiltrarLogs(APIView):
         listaLogs = list(logs)
         for log in listaLogs:
             fechapub = log['fechaHora'].replace(tzinfo=None)
-            log["fechaHora"] = datetime.datetime.strftime(fechapub, '%d-%m-%Y') + " " + str(fechapub.hour) + ":" + str(fechapub.minute) + ":" + str(fechapub.second)
+            log["fechaHora"] = datetime.datetime.strftime(fechapub, '%d-%m-%Y') + " " 
+            if (fechapub.hour>=10): log["fechaHora"] += str(fechapub.hour)
+            else: log["fechaHora"] += "0" + str(fechapub.hour)
+            if(fechapub.minute>=10): log["fechaHora"] += ":" + str(fechapub.minute)
+            else: log["fechaHora"] += ":0" + str(fechapub.minute)
+            if(fechapub.second>=10): log["fechaHora"] += ":" + str(fechapub.second)
+            else: log["fechaHora"] += ":0" + str(fechapub.second)
         #poner el formato para mostrar contactos
         return Response(listaLogs, status = status.HTTP_200_OK)

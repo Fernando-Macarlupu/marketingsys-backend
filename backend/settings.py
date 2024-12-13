@@ -56,7 +56,7 @@ INSTALLED_APPS = [
     'usuarios',
     'marketing',
     'sistema',
-    #'jobs.apps.JobsConfig'
+    'jobs.apps.JobsConfig'
 ]
 
 MIDDLEWARE = [
@@ -114,7 +114,7 @@ DATABASES = {
 #          'PASSWORD': 'fejomaro110601',
 #          'HOST': 'localhost',
 #          'PORT': '5432',
-#      }
+#       }
 # }
 
 
