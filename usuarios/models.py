@@ -31,7 +31,7 @@ class Usuario(models.Model):
     id = models.BigAutoField(primary_key=True)
     persona = models.ForeignKey(Persona, on_delete=models.CASCADE, null=True, blank=True)
     nombreUsuario = models.CharField(max_length=50, null=True, blank=True)
-    contrasena = models.CharField(max_length=50, null=True, blank=True)
+    contrasena = models.CharField(max_length=128, null=True, blank=True)
     foto = models.TextField(null=True, blank=True) #url de la foto
     rol = models.CharField(max_length=50, null=True, blank=True)
     esAdministrador = models.BooleanField(default=True)

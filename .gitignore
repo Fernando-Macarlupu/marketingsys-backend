@@ -45,6 +45,15 @@ coverage.xml
 # Django stuff:
 *.log
 *.pot
+.env
+.env.*
+!.env.example
+
+# Media / static / virtualenv
+media/
+staticfiles/
+env/
+backend.zip
 
 # Sphinx documentation
 docs/_build/

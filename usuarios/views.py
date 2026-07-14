@@ -21,10 +21,36 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from usuarios.tokens import get_tokens_for_usuario
+from usuarios.utils.password import hash_password, verify_password
 from sistema.serializers import LogSerializer
 #from zappa.asynchronous import task
 
+
+def _build_usuario_datos(usuario_obj):
+    return {
+        "idUsuario": usuario_obj.id,
+        "idCuenta": usuario_obj.cuentaUsuario_id,
+        "nombreUsuario": usuario_obj.nombreUsuario,
+        "nombreCompleto": (
+            usuario_obj.persona.nombreCompleto if usuario_obj.persona else ""
+        ),
+        "rol": usuario_obj.rol,
+        "esAdministrador": usuario_obj.esAdministrador,
+    }
+
+
+def _login_response(usuario_obj):
+    return {
+        "mensaje": "Usuario encontrado",
+        "datos": _build_usuario_datos(usuario_obj),
+        "tokens": get_tokens_for_usuario(usuario_obj),
+    }
+
+
 class RegistrarUsuario(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request,id=0):
         fechaActual = datetime.datetime.now()
         try:
@@ -81,12 +107,13 @@ class RegistrarUsuario(APIView):
                     usuario = Usuario.objects.filter(id=idUsuario).first()
                     campos_usuario = {
                         'nombreUsuario': request.data["nombreUsuario"],
-                        'contrasena': request.data["contrasena"],
                         'foto': request.data["foto"],
                         'rol': request.data["rol"],
                         'esAdministrador': request.data["esAdministrador"],
                         'fechaModificacion': fechaActual
                     }
+                    if request.data.get("contrasena"):
+                        campos_usuario['contrasena'] = hash_password(request.data["contrasena"])
                     usuario_serializer =UsuarioSerializer(usuario, data=campos_usuario)
                     if usuario_serializer.is_valid():
                         usuario_serializer.save()
@@ -197,13 +224,14 @@ class RegistrarUsuario(APIView):
                 campos_usuario = {
                     'persona': idPersona,
                     'nombreUsuario': request.data["nombreUsuario"],
-                    'contrasena': request.data["contrasena"],
                     'esAdministrador': request.data["esAdministrador"],
                     'rol': request.data["rol"],
                     'cuentaUsuario': idCuenta,
                     'fechaCreacion': fechaActual,
                         'fechaModificacion': fechaActual
                 }
+                if request.data.get("contrasena"):
+                    campos_usuario['contrasena'] = hash_password(request.data["contrasena"])
                 print(campos_usuario)
                 usuario_serializer =UsuarioSerializer(data=campos_usuario)
                 idUsuario = 0
@@ -285,12 +313,14 @@ class BuscarRedesUsuario(APIView):
 class BuscarDetalleUsuario(APIView):
     def get(self, request,id):
         if id is not None and id > 0:
-            usuario = Usuario.objects.filter(id=id).values('id', 'cuentaUsuario__id','nombreUsuario','contrasena', 'persona__nombreCompleto','rol','foto','esAdministrador').first()
+            usuario = Usuario.objects.filter(id=id).values(
+                'id', 'cuentaUsuario__id', 'nombreUsuario',
+                'persona__nombreCompleto', 'rol', 'foto', 'esAdministrador'
+            ).first()
             if usuario is not None:
                 campos_usuario = {
                 "idUsuario": usuario['id'],
                 "nombreUsuario": usuario['nombreUsuario'],
-                "contrasena": usuario['contrasena'],
                 "nombreCompleto": usuario['persona__nombreCompleto'],
                 "rol": usuario['rol'],
                 "foto": usuario['foto'],
@@ -326,53 +356,46 @@ class BuscarDetalleUsuario(APIView):
         return Response('No se ha encontrado al usuario', status = status.HTTP_200_OK)
 
 class Login(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request,id=0):
         if request.data["nombreUsuario"] != "" and request.data["contrasena"] != "":
-            response = {}
             nombreUsuario = request.data["nombreUsuario"]
             contrasena = request.data["contrasena"]
-            usuario = Usuario.objects.filter(nombreUsuario=nombreUsuario, contrasena=contrasena).values('id', 'cuentaUsuario__id','nombreUsuario','contrasena', 'persona__nombreCompleto','rol','esAdministrador').first()
-            if usuario is not None:
-                response = {"mensaje": "Usuario encontrado",
-                            "datos": {
-                                "idUsuario": usuario['id'],
-                                "idCuenta": usuario['cuentaUsuario__id'],
-                                "nombreUsuario": usuario['nombreUsuario'],
-                                "contrasena": usuario['contrasena'],
-                                "nombreCompleto": usuario['persona__nombreCompleto'],
-                                "rol": usuario['rol'],
-                                "esAdministrador": usuario['esAdministrador']
-                            }
-                }
-            else:
-                response = {"mensaje": "Usuario no encontrado",
-                            "datos": {}
-                }
-            return Response(response, status = status.HTTP_200_OK)
+            usuario_obj = Usuario.objects.select_related(
+                "persona", "cuentaUsuario"
+            ).filter(nombreUsuario=nombreUsuario).first()
+
+            if usuario_obj is not None and verify_password(contrasena, usuario_obj.contrasena):
+                if not is_password_usable(usuario_obj.contrasena):
+                    usuario_obj.contrasena = make_password(contrasena)
+                    usuario_obj.save(update_fields=["contrasena"])
+                return Response(_login_response(usuario_obj), status=status.HTTP_200_OK)
+
+            return Response(
+                {"mensaje": "Usuario no encontrado", "datos": {}},
+                status=status.HTTP_200_OK,
+            )
         return Response({
                             "mensaje": "No se ha ingresado usuario o contrasena",
                             "datos": {}
                         }, status = status.HTTP_200_OK)
 
 class LoginCorreo(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request,id=0):
         if request.data["correo"] != "":
-            response = {}
             correo = request.data["correo"]
-            usuario = CuentaCorreo.objects.filter(direccion=correo).values('usuario__id', 'usuario__cuentaUsuario__id','usuario__nombreUsuario','usuario__contrasena', 'usuario__persona__nombreCompleto','usuario__rol','usuario__esAdministrador').first()
-            if usuario is not None:
-                response = {"mensaje": "Usuario encontrado",
-                            "datos": {
-                                "idUsuario": usuario['usuario__id'],
-                                "idCuenta": usuario['usuario__cuentaUsuario__id'],
-                                "nombreUsuario": usuario['usuario__nombreUsuario'],
-                                "contrasena": usuario['usuario__contrasena'],
-                                "nombreCompleto": usuario['usuario__persona__nombreCompleto'],
-                                "rol": usuario['usuario__rol'],
-                                "esAdministrador": usuario['usuario__esAdministrador']
-                            }
-                }
-                return Response(response, status = status.HTTP_200_OK)
+            cuenta_correo = CuentaCorreo.objects.select_related(
+                "usuario__persona", "usuario__cuentaUsuario"
+            ).filter(direccion=correo).first()
+
+            if cuenta_correo is not None and cuenta_correo.usuario is not None:
+                return Response(
+                    _login_response(cuenta_correo.usuario),
+                    status=status.HTTP_200_OK,
+                )
             else:
                 campos_persona = {
                  'nombreCompleto': request.data["nombreCompleto"],
@@ -416,20 +439,18 @@ class LoginCorreo(APIView):
                 correo_serializer = CuentaCorreoSerializer(data = campos)
                 if correo_serializer.is_valid():
                     correo_serializer.save()
-                usuario = CuentaCorreo.objects.filter(direccion=correo).values('usuario__id', 'usuario__cuentaUsuario__id','usuario__nombreUsuario','usuario__contrasena', 'usuario__persona__nombreCompleto','usuario__rol','usuario__esAdministrador').first()
-                if usuario is not None:
-                    response = {"mensaje": "Usuario encontrado",
-                                "datos": {
-                                    "idUsuario": usuario['usuario__id'],
-                                    "idCuenta": usuario['usuario__cuentaUsuario__id'],
-                                    "nombreUsuario": usuario['usuario__nombreUsuario'],
-                                    "contrasena": usuario['usuario__contrasena'],
-                                    "nombreCompleto": usuario['usuario__persona__nombreCompleto'],
-                                    "rol": usuario['usuario__rol'],
-                                    "esAdministrador": usuario['usuario__esAdministrador']
-                                }
-                    }
-                return Response(response, status = status.HTTP_200_OK)
+                cuenta_correo = CuentaCorreo.objects.select_related(
+                    "usuario__persona", "usuario__cuentaUsuario"
+                ).filter(direccion=correo).first()
+                if cuenta_correo is not None and cuenta_correo.usuario is not None:
+                    return Response(
+                        _login_response(cuenta_correo.usuario),
+                        status=status.HTTP_200_OK,
+                    )
+                return Response(
+                    {"mensaje": "Usuario no encontrado", "datos": {}},
+                    status=status.HTTP_200_OK,
+                )
         return Response({
                             "mensaje": "No se ha ingresado un correo",
                             "datos": {}
@@ -455,23 +476,22 @@ class UsuarioAPIView(APIView):
         return Response(usuario_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class EnviarCodigoRecuperacionAPIView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request,id=0):
         correo = request.data["correo"]
         correoBD = CuentaCorreo.objects.filter(Q(direccion=correo) & Q(usuario__id__gte=1)).values('usuario__id').first()
         if(correoBD is None): return Response({}, status = status.HTTP_200_OK)
         codigo = request.data["codigo"]
-        my_host = "smtp.gmail.com"
-        my_port = 587
-        my_username = "marketing.sys.group@gmail.com"
-        my_password = "xlpz jdnf vlwg ufnw"
-        my_use_tls = True
         try:
-            connection = get_connection(host=my_host, 
-                                            port=my_port, 
-                                            username=my_username, 
-                                            password=my_password, 
-                                        use_tls=my_use_tls,
-                                        fail_silently=False)
+            connection = get_connection(
+                host=settings.EMAIL_HOST,
+                port=settings.EMAIL_PORT,
+                username=settings.EMAIL_HOST_USER,
+                password=settings.EMAIL_HOST_PASSWORD,
+                use_tls=settings.EMAIL_USE_TLS,
+                fail_silently=False,
+            )
             connection.open()
             mensaje = """ <!DOCTYPE html>
                             <html lang="en" >
@@ -503,8 +523,8 @@ class EnviarCodigoRecuperacionAPIView(APIView):
             plain_message = strip_tags(mensaje)
             message = EmailMultiAlternatives(subject="MarketingSYS - Recuperación de contraseña", 
                                                 body=plain_message,
-                                                from_email="marketingSYS", #ver si esta bien o poner none
-                                                to=[correo], #ver si funciona bien o poner to=
+                                                from_email=settings.DEFAULT_FROM_EMAIL,
+                                                to=[correo],
                                                 connection=connection)
             message.attach_alternative(mensaje, "text/html")
             message.send()
@@ -517,11 +537,15 @@ class EnviarCodigoRecuperacionAPIView(APIView):
         return Response({"idUsuario": correoBD['usuario__id']}, status = status.HTTP_200_OK)
 
 class ActualizarContrasena(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request,id=0):
         if request.data["idUsuario"] != "" and request.data["idUsuario"]>0:
             idUsuario = request.data["idUsuario"]
             contrasena = request.data["contrasena"]
-            Usuario.objects.filter(id=idUsuario).update(contrasena=contrasena)
+            Usuario.objects.filter(id=idUsuario).update(
+                contrasena=hash_password(contrasena)
+            )
             return Response({"Contrasena actualizada correctamente"}, status = status.HTTP_200_OK)
         else:
             return Response({}, status = status.HTTP_200_OK)

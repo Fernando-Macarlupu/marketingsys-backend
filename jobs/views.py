@@ -10,6 +10,7 @@ from marketing.models import *
 from marketing.serializers import RecursoSerializer
 from relaciones.models import CuentaCorreo
 from django.db.models import Q
+from jobs.formula_evaluator import evaluate_kpi_formula_from_scope
 
 # Create your views here.
 def start():
@@ -269,7 +270,7 @@ def calcularIndicadores():
                     # print(TPRO_PLAN)
                     # print(PPRO_PLAN)
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
@@ -340,7 +341,7 @@ def calcularIndicadores():
                     #calcular indicador con las variables
                     valor = 0
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
@@ -406,7 +407,7 @@ def calcularIndicadores():
                     #calcular indicador con las variables
                     valor = 0
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
@@ -471,7 +472,7 @@ def calcularIndicadores():
                     #calcular indicador con las variables
                     valor = 0
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
@@ -506,7 +507,7 @@ def calcularIndicadores():
                     #calcular indicador con las variables
                     valor = 0
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
@@ -541,7 +542,7 @@ def calcularIndicadores():
                     #calcular indicador con las variables
                     valor = 0
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
@@ -575,7 +576,7 @@ def calcularIndicadores():
                     #calcular indicador con las variables
                     valor = 0
                     try:
-                        valor = eval(indicador['indicador__formula'])
+                        valor = evaluate_kpi_formula_from_scope(indicador['indicador__formula'])
                         IndicadorAsignado.objects.filter(id=indicador['id']).update(valor = valor)
                         print("Se asigno el valor")
                     except Exception as e:
